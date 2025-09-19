@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Клиенты</h1>
+
+<div class="table-wrap mt-4">
+  <table>
+    <thead>
+      <tr>
+        <th class="nowrap">ID</th>
+        <th>Клиент</th>
+        <th>Описание</th>
+        <th class="right">Ключей</th>
+        <th class="right">Открыть</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for id, org_name, notes, keys_count in rows %}
+      <tr>
+        <td>{{ id }}</td>
+        <td>{{ org_name }}</td>
+        <!-- Однострочно с обрезкой; полный текст — в title -->
+        <td title="{{ notes or '' }}">
+          <div style="max-width:520px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            {{ notes or '—' }}
+          </div>
+        </td>
+        <td class="right">{{ keys_count }}</td>
+        <td class="right">
+          <a class="btn small btn-ghost" href="/clients/{{ id }}">Карточка</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

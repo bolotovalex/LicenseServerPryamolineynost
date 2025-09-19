@@ -1,0 +1,93 @@
+/* ===== Корпоративный мини-кит (локально) ===== */
+:root{
+  --primary:#1f64e2; --primary-700:#164ab5;
+  --success:#10b981; --warn:#f59e0b; --danger:#ef4444;
+  --ink:#0f172a; --muted:#64748b;
+  --bg:#f6f7fb; --card:#fff; --border:#e5e7eb;
+  --radius:12px; --shadow:0 6px 18px rgba(15,23,42,.06);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0; font:14px/1.5 var(--sans); color:var(--ink); background:var(--bg)}
+h1{font-size:26px;margin:0 0 18px} h2{font-size:16px;margin:0 0 10px;color:var(--muted)}
+.container{max-width:1120px;margin:0 auto;padding:24px}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.card + .card{margin-top:16px}
+
+/* Inputs / Buttons */
+label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
+.input,.textarea{width:100%;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none}
+.input:focus,.textarea:focus{border-color:var(--primary)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:10px;border:1px solid transparent;background:var(--primary);color:#fff;cursor:pointer}
+.btn:hover{background:var(--primary-700)}
+.btn.ghost{background:#fff;color:var(--ink);border-color:var(--border)}
+.btn.small{padding:6px 10px;font-size:12px}
+.btn.green{background:var(--success)} .btn.amber{background:var(--warn)} .btn.red{background:var(--danger)}
+
+/* Table (компакт) */
+.table-wrap{background:#fff; border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:visible; }
+table{width:100%;border-collapse:separate;border-spacing:0}
+thead th{font-weight:600;font-size:12px;color:var(--muted);padding:8px 10px;background:#fafafa;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+tbody td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+tbody tr:hover{background:#fafafa}
+td.mono{font-family:var(--mono);word-break:break-word}
+td.right{text-align:right}
+
+/* Badges */
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:12px;border:1px solid var(--border);color:var(--muted);background:#fff}
+.badge.success{background:rgba(16,185,129,.08);color:#047857;border-color:rgba(16,185,129,.25)}
+.badge.warn{background:rgba(245,158,11,.08);color:#92400e;border-color:rgba(245,158,11,.25)}
+.badge.danger{background:rgba(239,68,68,.08);color:#991b1b;border-color:rgba(239,68,68,.25)}
+.badge.new{background:rgba(31,100,226,.08);color:#164ab5;border-color:rgba(31,100,226,.25)}
+
+/* One-line ellipsis */
+.ellipsis{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w-300{max-width:300px}
+
+/* компактные строки таблицы */
+.table-compact thead th{padding:6px 10px}
+.table-compact tbody td{padding:6px 10px; vertical-align:middle}
+
+/* однострочный текст с многоточием */
+.ellipsis{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.w-220{max-width:220px}
+.w-280{max-width:280px}
+
+/* бейдж статуса */
+.badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #e5e7eb; color:#64748b; background:#fff}
+.badge.success{background:rgba(16,185,129,.08); color:#047857; border-color:rgba(16,185,129,.25)}
+.badge.warn{background:rgba(245,158,11,.08); color:#92400e; border-color:rgba(245,158,11,.25)}
+.badge.danger{background:rgba(239,68,68,.08); color:#991b1b; border-color:rgba(239,68,68,.25)}
+.badge.new{background:rgba(31,100,226,.08); color:#164ab5; border-color:rgba(31,100,226,.25)}
+
+/* выпадающее меню действий без JS-библиотек */
+.row-actions{position:relative; display:inline-block}
+.row-actions>summary{
+  list-style:none;
+  cursor:pointer;
+  display:inline-flex; align-items:center;
+  border:1px solid #e5e7eb; background:#fff;
+  padding:6px 10px; border-radius:8px; font-size:12px;
+  position:relative; z-index:1;
+}
+.row-actions[open] > summary{background:#f3f4f6}
+.row-actions .menu{
+  position:absolute; right:0; top:calc(100% + 6px); z-index:20;
+  min-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.15);
+  padding:10px;
+}
+.menu .line{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+.menu .line:last-child{margin-bottom:0}
+.menu .input{height:32px; padding:6px 8px; border-radius:8px}
+.menu .btn.small{padding:6px 10px; border-radius:8px; font-size:12px}
+.row-actions{ position:relative; z-index: 5; }
+.row-actions[open]{ z-index: 60; }           /* открытому — поверх соседей */
+.row-actions .menu{
+  position:absolute; right:0; top:calc(100% + 6px);
+  z-index: 100;                               /* поверх таблицы/шейпов */
+}

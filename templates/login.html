@@ -1,0 +1,15 @@
+<!doctype html><html><head>
+<meta charset="utf-8"/><script src="https://cdn.tailwindcss.com"></script>
+<title>Вход</title></head><body class="bg-slate-100">
+<div class="max-w-md mx-auto mt-24 bg-white shadow rounded p-6">
+  <h1 class="text-xl font-semibold mb-4">Вход в панель</h1>
+  {% if error %}<div class="text-red-600 mb-3">{{error}}</div>{% endif %}
+  <form method="post" action="{{ 'init-admin' if show_init else 'login' }}">
+    <label class="block mb-2 text-sm">Email</label>
+    <input name="email" type="email" class="w-full border px-3 py-2 rounded mb-3" required/>
+    <label class="block mb-2 text-sm">Пароль</label>
+    <input name="password" type="password" class="w-full border px-3 py-2 rounded mb-4" required/>
+    <button class="px-4 py-2 bg-blue-600 text-white rounded">Войти</button>
+  </form>
+</div>
+</body></html>
