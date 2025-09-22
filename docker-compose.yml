@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  licserver:
+    build: .
+    container_name: licserver
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+      SECRET_KEY: "replace-me"
+      DATABASE_URL: "sqlite+aiosqlite:///data/licserver.db"
+    volumes:
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+      - ./app:/app/app:ro
+      - ./data:/data
