@@ -76,7 +76,6 @@
           title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
           {{ lic.expires_at.strftime('%Y-%m-%d') if lic.expires_at else 'бессрочно' }}
         </td>
-
         <td class="ellipsis w-280" title="{{ lic.description or '' }}">{{ lic.description or '—' }}</td>
         <td>
           {% if lic.is_blocked %}
