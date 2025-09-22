@@ -57,8 +57,20 @@
       <tr>
         <td>{{ lic.id }}</td>
         <td>{{ lic.version }}</td>
-        <td class="ellipsis w-220" title="{{ lic.issued_at }}">{{ lic.issued_at }}</td>
-        <td class="ellipsis w-220" title="{{ lic.activated_at or '' }}">{{ lic.activated_at or '—' }}</td>
+        <td>
+          {% if lic.issued_at %}
+            <span title="{{ lic.issued_at.isoformat(sep=' ', timespec='seconds') }}">
+              {{ lic.issued_at.strftime('%Y-%m-%d') }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if lic.activated_at %}
+            <span title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') }}">
+              {{ lic.activated_at.strftime('%Y-%m-%d') }}
+            </span>
+          {% else %}—{% endif %}
+        </td>
         <td class="ellipsis w-280" title="{{ lic.device_id or '' }}">{{ lic.device_id or '—' }}</td>
         <td class="ellipsis w-220" title="{{ lic.expires_at or 'бессрочно' }}">{{ lic.expires_at or 'бессрочно' }}</td>
         <td class="ellipsis w-280" title="{{ lic.description or '' }}">{{ lic.description or '—' }}</td>
