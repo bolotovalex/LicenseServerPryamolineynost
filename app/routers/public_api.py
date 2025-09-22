@@ -40,7 +40,7 @@ def _license_info_payload(lic: License, client: Client | None) -> dict:
 async def activate(data: ActivationRequest, db: AsyncSession = Depends(get_session)):
     lic = (await db.execute(select(License).where(License.key == data.key))).scalar_one_or_none()
     if not lic:
-        return JSONResponse(status_code=404, content={"status": "error", "reason": "License not found"})
+        return JSONResponse(status_code=404, content={"status": "error", "reason": "Не верная лицензия"})
 
     client = await db.get(Client, lic.client_id)
 
@@ -48,14 +48,14 @@ async def activate(data: ActivationRequest, db: AsyncSession = Depends(get_sessi
     if lic.is_blocked:
         return JSONResponse(
             status_code=403,
-            content={"status": "error", "reason": f"Blocked: {lic.block_reason or ''}".strip(), **_license_info_payload(lic, client)}
+            content={"status": "error", "reason": f"Лицензия заблокирована: {lic.block_reason or ''}".strip(), **_license_info_payload(lic, client)}
         )
 
     # срок
     if lic.expires_at and dt.datetime.utcnow() > lic.expires_at:
         return JSONResponse(
             status_code=403,
-            content={"status": "error", "reason": "License expired", **_license_info_payload(lic, client)}
+            content={"status": "error", "reason": "Срок действия лицензии закончился", **_license_info_payload(lic, client)}
         )
 
     # уже активирован (на том же устройстве можно просто подтвердить статус; на другом — запрет)
@@ -66,7 +66,7 @@ async def activate(data: ActivationRequest, db: AsyncSession = Depends(get_sessi
         else:
             return JSONResponse(
                 status_code=409,
-                content={"status": "error", "reason": "License already activated on another device", **_license_info_payload(lic, client)}
+                content={"status": "error", "reason": "Лицензия была активирована на другом устройстве", **_license_info_payload(lic, client)}
             )
 
     # активация
@@ -84,29 +84,29 @@ async def activate(data: ActivationRequest, db: AsyncSession = Depends(get_sessi
 async def transfer_license(data: TransferRequest, db: AsyncSession = Depends(get_session)):
     lic = (await db.execute(select(License).where(License.key == data.key))).scalar_one_or_none()
     if not lic:
-        return JSONResponse(status_code=404, content={"status": "error", "reason": "License not found"})
+        return JSONResponse(status_code=404, content={"status": "error", "reason": "Не верная лицензия"})
 
     client = await db.get(Client, lic.client_id)
 
     if lic.is_blocked:
         return JSONResponse(
             status_code=403,
-            content={"status": "error", "reason": f"Blocked: {lic.block_reason or ''}".strip(), **_license_info_payload(lic, client)}
+            content={"status": "error", "reason": f"Лицензия заблокирована: {lic.block_reason or ''}".strip(), **_license_info_payload(lic, client)}
         )
     if not lic.activated_at:
         return JSONResponse(
             status_code=409,
-            content={"status": "error", "reason": "License is not activated", **_license_info_payload(lic, client)}
+            content={"status": "error", "reason": "Лицензия не активирована", **_license_info_payload(lic, client)}
         )
     if lic.device_id != data.device_id:
         return JSONResponse(
             status_code=409,
-            content={"status": "error", "reason": "License activated on another device", **_license_info_payload(lic, client)}
+            content={"status": "error", "reason": "Лицензия была активирована на другом устройстве", **_license_info_payload(lic, client)}
         )
     if lic.expires_at and dt.datetime.utcnow() > lic.expires_at:
         return JSONResponse(
             status_code=403,
-            content={"status": "error", "reason": "License expired", **_license_info_payload(lic, client)}
+            content={"status": "error", "reason": "Срок действия лицензии закончился", **_license_info_payload(lic, client)}
         )
 
     # деактивируем текущий ключ в истории
