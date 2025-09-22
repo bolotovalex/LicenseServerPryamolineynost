@@ -46,7 +46,7 @@
         <th>Выдана</th>
         <th>Активирована</th>
         <th>Устройство</th>
-        <th>Срок</th>
+        <th>Активен до</th>
         <th>Описание</th>
         <th>Статус</th>
         <th class="right">Действия</th>
@@ -72,7 +72,9 @@
           {% else %}—{% endif %}
         </td>
         <td class="ellipsis w-280" title="{{ lic.device_id or '' }}">{{ lic.device_id or '—' }}</td>
-        <td class="ellipsis w-220" title="{{ lic.expires_at or 'бессрочно' }}">{{ lic.expires_at or 'бессрочно' }}</td>
+        <td class="ellipsis w-280" title="{{ lic.device_id or '' }}">
+          {{ lic.device_id[:12] ~ '…' if lic.device_id and lic.device_id|length > 12 else (lic.device_id or '—') }}
+        </td>
         <td class="ellipsis w-280" title="{{ lic.description or '' }}">{{ lic.description or '—' }}</td>
         <td>
           {% if lic.is_blocked %}
