@@ -1,6 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Клиент #{{ client.id }} — {{ client.org_name }}</h1>
+<div class="flex items-center gap-3 mb-4 flex-wrap">
+  <h1 class="text-2xl font-semibold">Клиент #{{ client.id }} — {{ client.org_name }}</h1>
+  {% if client.is_active %}
+    <span class="badge success">активен</span>
+  {% else %}
+    <span class="badge danger">отключён</span>
+  {% endif %}
+  <div style="margin-left:auto;display:flex;gap:8px">
+    {% if client.is_active %}
+      <form method="post" action="/owner/clients/{{ client.id }}/deactivate">
+        <button class="btn small amber">Отключить</button>
+      </form>
+    {% else %}
+      <form method="post" action="/owner/clients/{{ client.id }}/activate">
+        <button class="btn small green">Включить</button>
+      </form>
+    {% endif %}
+    <form method="post" action="/owner/clients/{{ client.id }}/delete"
+          onsubmit="return confirm('Удалить клиента «{{ client.org_name }}» и все его лицензии? Это действие необратимо.')">
+      <button class="btn small red">Удалить</button>
+    </form>
+  </div>
+</div>
 
 <!-- ===== Логотип + Описание ===== -->
 <div class="bg-white p-4 rounded shadow mb-6 flex gap-6 items-start">

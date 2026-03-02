@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Resp
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from PIL import Image
-from sqlalchemy import desc, func, select
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -146,6 +146,67 @@ async def client_update_info(
     client.notes = (notes or None)
     await db.commit()
     return RedirectResponse(url=f"/owner/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/deactivate")
+async def client_deactivate(
+    request: Request,
+    client_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    await require_owner(request, db)
+    client = (await db.execute(
+        select(Client).where(Client.id == client_id)
+    )).scalar_one_or_none()
+    if not client:
+        raise HTTPException(404)
+    client.is_active = False
+    await db.commit()
+    return RedirectResponse(url=f"/owner/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/activate")
+async def client_activate(
+    request: Request,
+    client_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    await require_owner(request, db)
+    client = (await db.execute(
+        select(Client).where(Client.id == client_id)
+    )).scalar_one_or_none()
+    if not client:
+        raise HTTPException(404)
+    client.is_active = True
+    await db.commit()
+    return RedirectResponse(url=f"/owner/clients/{client_id}", status_code=303)
+
+
+@router.post("/clients/{client_id}/delete")
+async def client_delete(
+    request: Request,
+    client_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    await require_owner(request, db)
+    client = (await db.execute(
+        select(Client).where(Client.id == client_id)
+    )).scalar_one_or_none()
+    if not client:
+        raise HTTPException(404)
+
+    license_ids = (await db.execute(
+        select(License.id).where(License.client_id == client_id)
+    )).scalars().all()
+
+    if license_ids:
+        await db.execute(delete(LicenseAction).where(LicenseAction.license_id.in_(license_ids)))
+        await db.execute(delete(LicenseKey).where(LicenseKey.license_id.in_(license_ids)))
+        await db.execute(delete(License).where(License.client_id == client_id))
+
+    await db.delete(client)
+    await db.commit()
+    return RedirectResponse(url="/owner/clients", status_code=303)
 
 
 # ── логотип ───────────────────────────────────────────────────────────────────
