@@ -1,5 +1,5 @@
 import datetime as dt
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Boolean, Text
+from sqlalchemy import String, Integer, DateTime, ForeignKey, Boolean, Text, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
@@ -14,7 +14,9 @@ class Client(Base):
     __tablename__ = "clients"
     id: Mapped[int] = mapped_column(primary_key=True)
     org_name: Mapped[str] = mapped_column(String(255), index=True)
-    notes: Mapped[str | None] = mapped_column(String(1024))  # описание/доп. инфо
+    notes: Mapped[str | None] = mapped_column(String(1024))
+    logo_data: Mapped[bytes | None] = mapped_column(LargeBinary)   # бинарные данные логотипа
+    logo_mime: Mapped[str | None] = mapped_column(String(50))       # image/png, image/jpeg, …
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
     licenses: Mapped[list["License"]] = relationship(back_populates="client")
 
@@ -64,3 +66,11 @@ class LicenseAction(Base):
     action: Mapped[str] = mapped_column(String(32))  # issue/reset/block/unblock/activate
     reason: Mapped[str | None] = mapped_column(Text)
     at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+
+class AppSetting(Base):
+    """Хранилище настроек приложения в БД — участвует в резервных копиях."""
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(String(512))
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
