@@ -2,3 +2,5 @@ licserver.db
 .venv/
 backups/
 data/
+__pycache__/
+*.pyc
