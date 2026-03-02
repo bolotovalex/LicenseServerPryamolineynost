@@ -1,13 +1,54 @@
-from fastapi import FastAPI
+import logging
+import time
+
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
+
 from app.db import engine, Base
+from app.logging_setup import setup_logging
 from app.routers import public_api, auth, owner_web
 from app.models import License, LicenseKey
 
+# Логирование настраивается первым — до создания app
+setup_logging()
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="License Server")
 
+
+# ── middleware: логирование запросов ─────────────────────────────────────────
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    if request.url.path.startswith("/static/"):
+        return await call_next(request)
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = int((time.perf_counter() - start) * 1000)
+
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip = forwarded.split(",")[0].strip() if forwarded else (
+        request.client.host if request.client else "-"
+    )
+    ua = request.headers.get("User-Agent", "-")
+
+    logger.info(
+        "%s | %s | %s | %s | %dms | %s | %s",
+        time.strftime("%Y-%m-%dT%H:%M:%S"),
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+        ip,
+        ua,
+    )
+    return response
+
+
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 async def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:
     """Добавляет колонку в таблицу только если её ещё нет (SQLite PRAGMA)."""
@@ -16,6 +57,8 @@ async def _add_column_if_missing(conn, table: str, column: str, col_def: str) ->
     if column not in existing:
         await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
 
+
+# ── startup ───────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
 async def startup():
@@ -66,6 +109,11 @@ async def startup():
 
         from app.services.settings_db import sync_from_config
         await sync_from_config(s)
+
+    logger.info("Приложение запущено.")
+
+
+# ── routers & static ─────────────────────────────────────────────────────────
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(public_api.router, prefix="/api")

@@ -4,3 +4,5 @@ backups/
 data/
 __pycache__/
 *.pyc
+logs/*
+!logs/.gitkeep
