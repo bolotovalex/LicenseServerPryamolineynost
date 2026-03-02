@@ -1,14 +1,30 @@
-from pydantic_settings import BaseSettings
+"""
+Тонкая обёртка над app.config для обратной совместимости.
+Весь код, использующий settings.JWT_SECRET / settings.DATABASE_URL и т.д., продолжает работать.
+"""
+from app.config import app_config, db_config
 
 
-class Settings(BaseSettings):
-    APP_NAME: str = "License Server"
-    JWT_SECRET: str = "CHANGE_ME"   # замени
-    JWT_ALG: str = "HS256"
-    ACCESS_TOKEN_EXPIRES_MIN: int = 60*8
-    DATABASE_URL: str = "sqlite+aiosqlite:///./licserver.db"
+class _Settings:
+    @property
+    def APP_NAME(self) -> str:
+        return app_config.name
 
-    class Config:
-        env_file = ".env"
+    @property
+    def JWT_SECRET(self) -> str:
+        return app_config.secret_key
 
-settings = Settings()
+    @property
+    def JWT_ALG(self) -> str:
+        return app_config.jwt_algorithm
+
+    @property
+    def ACCESS_TOKEN_EXPIRES_MIN(self) -> int:
+        return app_config.token_expires_minutes
+
+    @property
+    def DATABASE_URL(self) -> str:
+        return db_config.url
+
+
+settings = _Settings()
