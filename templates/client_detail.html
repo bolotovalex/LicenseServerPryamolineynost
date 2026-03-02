@@ -8,7 +8,7 @@
   <!-- Логотип -->
   <div style="min-width:140px;text-align:center">
     {% if client.logo_data %}
-      <img src="/clients/{{ client.id }}/logo"
+      <img src="/owner/clients/{{ client.id }}/logo"
            alt="Логотип"
            style="max-width:128px;max-height:128px;border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;margin-bottom:8px"/>
     {% else %}
@@ -17,7 +17,7 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/clients/{{ client.id }}/upload-logo"
+    <form method="post" action="/owner/clients/{{ client.id }}/upload-logo"
           enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:6px;align-items:center">
       <label style="cursor:pointer;font-size:12px;color:#1f64e2;text-decoration:underline">
         {{ "Заменить" if client.logo_data else "Загрузить логотип" }}
@@ -27,7 +27,7 @@
     </form>
 
     {% if client.logo_data %}
-      <form method="post" action="/clients/{{ client.id }}/delete-logo" style="margin-top:4px">
+      <form method="post" action="/owner/clients/{{ client.id }}/delete-logo" style="margin-top:4px">
         <button class="btn small ghost" style="font-size:11px;color:#ef4444">Удалить</button>
       </form>
     {% endif %}
@@ -44,7 +44,7 @@
     </div>
 
     <!-- Режим редактирования (скрыт по умолчанию) -->
-    <form id="notes-form" method="post" action="/clients/{{ client.id }}/update-notes" hidden>
+    <form id="notes-form" method="post" action="/owner/clients/{{ client.id }}/update-notes" hidden>
       <textarea name="notes" rows="4"
                 class="border px-3 py-2 rounded w-full"
                 style="margin-bottom:8px">{{ client.notes or '' }}</textarea>
@@ -58,7 +58,7 @@
 
 <!-- ===== Форма выпуска лицензии ===== -->
 <div class="bg-white p-4 rounded shadow mb-6">
-  <form method="post" action="/licenses/issue" class="flex items-end gap-3 flex-wrap">
+  <form method="post" action="/owner/licenses/issue" class="flex items-end gap-3 flex-wrap">
     <input type="hidden" name="client_id" value="{{ client.id }}"/>
     <div class="flex-1 min-w-[240px]">
       <label class="block text-sm mb-1">Описание лицензии *</label>
@@ -132,13 +132,13 @@
                   data-open-keys='{{ (keys_payloads or {}).get(lic.id, []) | tojson }}'>
             Ключи
           </button>
-          <a class="btn small ghost" href="/licenses/{{ lic.id }}/qrcode" target="_blank">QR</a>
+          <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode" target="_blank">QR</a>
 
           <details class="row-actions">
             <summary>Действия</summary>
             <div class="menu">
               <div class="line">
-                <form method="post" action="/licenses/{{ lic.id }}/reset"
+                <form method="post" action="/owner/licenses/{{ lic.id }}/reset"
                       style="display:flex;gap:8px;align-items:center">
                   <input class="input" name="reason" placeholder="Причина сброса"
                          style="width:170px" required/>
@@ -149,13 +149,13 @@
               </div>
               {% if lic.is_blocked %}
               <div class="line" style="justify-content:flex-end">
-                <form method="post" action="/licenses/{{ lic.id }}/unblock">
+                <form method="post" action="/owner/licenses/{{ lic.id }}/unblock">
                   <button class="btn small green">Разблокировать</button>
                 </form>
               </div>
               {% else %}
               <div class="line">
-                <form method="post" action="/licenses/{{ lic.id }}/block"
+                <form method="post" action="/owner/licenses/{{ lic.id }}/block"
                       style="display:flex;gap:8px;align-items:center">
                   <input class="input" name="reason" placeholder="Причина блокировки"
                          style="width:240px" required/>

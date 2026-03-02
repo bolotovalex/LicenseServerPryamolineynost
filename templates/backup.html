@@ -25,12 +25,12 @@
 <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
 
   <!-- Создать резервную копию -->
-  <form method="post" action="/backup/create">
+  <form method="post" action="/owner/backup/create">
     <button class="btn">+ Создать резервную копию</button>
   </form>
 
   <!-- Загрузить файл на сервер -->
-  <form method="post" action="/backup/upload" enctype="multipart/form-data"
+  <form method="post" action="/owner/backup/upload" enctype="multipart/form-data"
         style="display:flex;gap:8px;align-items:center">
     <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;
                   border:1px solid #e5e7eb;padding:8px 12px;border-radius:10px;
@@ -74,17 +74,17 @@
           <div style="display:inline-flex;gap:6px;align-items:center">
 
             <!-- Скачать -->
-            <a href="/backup/download/{{ b.name }}" class="btn small ghost"
+            <a href="/owner/backup/download/{{ b.name }}" class="btn small ghost"
                style="text-decoration:none">Скачать</a>
 
             <!-- Восстановить -->
-            <form method="post" action="/backup/restore/{{ b.name }}"
+            <form method="post" action="/owner/backup/restore/{{ b.name }}"
                   onsubmit="return confirm('Все текущие данные будут заменены данными из «{{ b.name }}». Продолжить?')">
               <button class="btn small" style="background:#f59e0b">Восстановить</button>
             </form>
 
             <!-- Удалить -->
-            <form method="post" action="/backup/delete/{{ b.name }}"
+            <form method="post" action="/owner/backup/delete/{{ b.name }}"
                   onsubmit="return confirm('Удалить файл «{{ b.name }}»?')">
               <button class="btn small ghost" style="color:#ef4444">Удалить</button>
             </form>
