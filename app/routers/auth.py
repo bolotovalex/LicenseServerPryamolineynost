@@ -1,4 +1,5 @@
 import datetime as dt
+import secrets
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -8,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import security_config
 from app.db import get_session
-from app.models import AdminUser, Client, LoginAttempt
+from app.models import AdminUser, Client, LoginAttempt, PasswordResetToken
 from app.password import validate_password
 from app.security import (
     create_org_token, create_owner_token,
@@ -174,3 +175,145 @@ async def setup_post(
     db.add(AdminUser(email=email, password_hash=hash_password(password), role="superadmin"))
     await db.commit()
     return RedirectResponse(url="/login", status_code=303)
+
+
+# ── восстановление пароля ─────────────────────────────────────────────────────
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_get(request: Request):
+    return templates.TemplateResponse(
+        "forgot_password.html", {"request": request, "info": None, "login": ""}
+    )
+
+
+@router.post("/forgot-password")
+async def forgot_password_post(
+    request: Request,
+    login: str = Form(...),
+    db: AsyncSession = Depends(get_session),
+):
+    now = dt.datetime.utcnow()
+
+    # ищем AdminUser по email, затем Client по login
+    admin = (await db.execute(
+        select(AdminUser).where(AdminUser.email == login)
+    )).scalar_one_or_none()
+    client = None
+    if not admin:
+        client = (await db.execute(
+            select(Client).where(Client.login == login)
+        )).scalar_one_or_none()
+
+    entity = admin or client
+    if entity:
+        entity_type = "admin" if admin else "org"
+        email_to = admin.email if admin else client.contact_email
+
+        if email_to:
+            token = secrets.token_urlsafe(48)
+            db.add(PasswordResetToken(
+                entity_type=entity_type,
+                entity_id=entity.id,
+                token=token,
+                expires_at=now + dt.timedelta(hours=1),
+                ip_address=_get_ip(request),
+            ))
+            await db.commit()
+
+            reset_url = str(request.base_url).rstrip("/") + f"/reset-password/{token}"
+            from app.email import notify_password_reset
+            notify_password_reset(email_to, reset_url)
+
+    # одинаковый ответ — не раскрываем наличие аккаунта
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {"request": request,
+         "info": "Если адрес зарегистрирован, письмо будет отправлено в течение минуты.",
+         "login": login},
+    )
+
+
+@router.get("/reset-password/{token}", response_class=HTMLResponse)
+async def reset_password_get(
+    request: Request,
+    token: str,
+    db: AsyncSession = Depends(get_session),
+):
+    rec = await _get_valid_token(token, db)
+    if not rec:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "valid_token": False,
+             "error": "Ссылка недействительна или истекла."},
+            status_code=400,
+        )
+    return templates.TemplateResponse(
+        "reset_password.html",
+        {"request": request, "valid_token": True, "errors": []},
+    )
+
+
+@router.post("/reset-password/{token}")
+async def reset_password_post(
+    request: Request,
+    token: str,
+    password: str = Form(...),
+    password2: str = Form(...),
+    db: AsyncSession = Depends(get_session),
+):
+    rec = await _get_valid_token(token, db)
+    if not rec:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "valid_token": False,
+             "error": "Ссылка недействительна или истекла."},
+            status_code=400,
+        )
+
+    if password != password2:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "valid_token": True, "errors": ["Пароли не совпадают"]},
+            status_code=422,
+        )
+
+    errors = validate_password(password)
+    if errors:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "valid_token": True, "errors": errors},
+            status_code=422,
+        )
+
+    # обновляем пароль нужной сущности
+    if rec.entity_type == "admin":
+        entity = (await db.execute(
+            select(AdminUser).where(AdminUser.id == rec.entity_id)
+        )).scalar_one_or_none()
+    else:
+        entity = (await db.execute(
+            select(Client).where(Client.id == rec.entity_id)
+        )).scalar_one_or_none()
+
+    if entity:
+        entity.password_hash = hash_password(password)
+        entity.failed_attempts = 0
+        entity.locked_until = None
+
+    rec.used = True
+    await db.commit()
+
+    return RedirectResponse(url="/login?reset=ok", status_code=303)
+
+
+async def _get_valid_token(token: str, db: AsyncSession):
+    """Возвращает PasswordResetToken если он действителен, иначе None."""
+    now = dt.datetime.utcnow()
+    rec = (await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token == token,
+            PasswordResetToken.used == False,
+            PasswordResetToken.expires_at > now,
+        )
+    )).scalar_one_or_none()
+    return rec
