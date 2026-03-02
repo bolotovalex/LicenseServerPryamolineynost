@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from PIL import Image
 from sqlalchemy import desc, func, select
@@ -525,3 +525,14 @@ async def backup_delete(
     if path.exists():
         path.unlink()
     return RedirectResponse(url="/backup", status_code=303)
+
+
+# ---------- утилиты ----------
+
+@router.get("/api/internal/generate-password")
+async def api_generate_password(request: Request, db: AsyncSession = Depends(get_session)):
+    """Генерирует случайный пароль согласно политике безопасности. Только для авторизованных администраторов."""
+    admin = await get_current_admin(request, db)
+    require_admin(admin)
+    from app.password import generate_password
+    return JSONResponse({"password": generate_password()})
