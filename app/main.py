@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from app.db import engine, Base
-from app.routers import public_api, admin_web
+from app.routers import public_api, auth, owner_web
 from app.models import License, LicenseKey
 
 app = FastAPI(title="License Server")
@@ -12,7 +12,7 @@ app = FastAPI(title="License Server")
 async def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:
     """Добавляет колонку в таблицу только если её ещё нет (SQLite PRAGMA)."""
     rows = (await conn.execute(text(f"PRAGMA table_info({table})"))).fetchall()
-    existing = {row[1] for row in rows}  # row[1] — имя колонки
+    existing = {row[1] for row in rows}
     if column not in existing:
         await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
 
@@ -22,7 +22,6 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-        # --- авто-миграции для существующих БД ---
         migrations = [
             # clients: логотип
             ("clients", "logo_data",       "BLOB"),
@@ -49,7 +48,7 @@ async def startup():
         for table, column, col_def in migrations:
             await _add_column_if_missing(conn, table, column, col_def)
 
-    # backfill истории ключей: для существующих лицензий создать запись активного ключа
+    # backfill истории ключей
     async with AsyncSession(engine) as s:
         licenses = (await s.execute(select(License))).scalars().all()
         need_commit = False
@@ -65,10 +64,10 @@ async def startup():
         if need_commit:
             await s.commit()
 
-        # синхронизировать настройки из config/*.cfg → app_settings (только новые ключи)
         from app.services.settings_db import sync_from_config
         await sync_from_config(s)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(public_api.router, prefix="/api")
-app.include_router(admin_web.router)
+app.include_router(auth.router)
+app.include_router(owner_web.router, prefix="/owner")
