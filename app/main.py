@@ -8,24 +8,46 @@ from app.models import License, LicenseKey
 
 app = FastAPI(title="License Server")
 
+
+async def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:
+    """Добавляет колонку в таблицу только если её ещё нет (SQLite PRAGMA)."""
+    rows = (await conn.execute(text(f"PRAGMA table_info({table})"))).fetchall()
+    existing = {row[1] for row in rows}  # row[1] — имя колонки
+    if column not in existing:
+        await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
+
+
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
         # --- авто-миграции для существующих БД ---
-        _migrations = [
-            # логотип теперь в БД (blob), не на диске
-            "ALTER TABLE clients ADD COLUMN logo_data BLOB",
-            "ALTER TABLE clients ADD COLUMN logo_mime VARCHAR(50)",
-            # устаревшая колонка из предыдущей версии — оставляем, не удаляем
-            # "ALTER TABLE clients DROP COLUMN logo_filename",
+        migrations = [
+            # clients: логотип
+            ("clients", "logo_data",       "BLOB"),
+            ("clients", "logo_mime",       "VARCHAR(50)"),
+            # clients: новые поля
+            ("clients", "login",           "VARCHAR(64)"),
+            ("clients", "password_hash",   "VARCHAR(255)"),
+            ("clients", "is_active",       "BOOLEAN DEFAULT 1"),
+            ("clients", "max_keys",        "INTEGER DEFAULT 5"),
+            ("clients", "key_ttl_days",    "INTEGER"),
+            ("clients", "contact_email",   "VARCHAR(255)"),
+            ("clients", "created_by",      "INTEGER REFERENCES admin_users(id)"),
+            ("clients", "failed_attempts", "INTEGER DEFAULT 0"),
+            ("clients", "locked_until",    "DATETIME"),
+            ("clients", "last_login_at",   "DATETIME"),
+            # admin_users: новые поля
+            ("admin_users", "role",            "VARCHAR(32) DEFAULT 'admin'"),
+            ("admin_users", "created_by",      "INTEGER REFERENCES admin_users(id)"),
+            ("admin_users", "created_at",      "DATETIME"),
+            ("admin_users", "last_login_at",   "DATETIME"),
+            ("admin_users", "failed_attempts", "INTEGER DEFAULT 0"),
+            ("admin_users", "locked_until",    "DATETIME"),
         ]
-        for sql in _migrations:
-            try:
-                await conn.execute(text(sql))
-            except Exception:
-                pass  # колонка уже существует
+        for table, column, col_def in migrations:
+            await _add_column_if_missing(conn, table, column, col_def)
 
     # backfill истории ключей: для существующих лицензий создать запись активного ключа
     async with AsyncSession(engine) as s:
@@ -34,7 +56,9 @@ async def startup():
         for lic in licenses:
             if not lic.key:
                 continue
-            exists = (await s.execute(select(LicenseKey).where(LicenseKey.key == lic.key))).scalar_one_or_none()
+            exists = (await s.execute(
+                select(LicenseKey).where(LicenseKey.key == lic.key)
+            )).scalar_one_or_none()
             if not exists:
                 s.add(LicenseKey(license_id=lic.id, key=lic.key, is_active=True))
                 need_commit = True
