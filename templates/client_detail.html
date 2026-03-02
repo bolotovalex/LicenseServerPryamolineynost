@@ -2,33 +2,73 @@
 {% block content %}
 <h1 class="text-2xl font-semibold mb-4">Клиент #{{ client.id }} — {{ client.org_name }}</h1>
 
-<div class="bg-white p-4 rounded shadow mb-6">
-  <h2 class="font-semibold mb-2">Описание / доп. информация</h2>
-  <form method="post" action="/clients/{{ client.id }}/update-notes">
-    <textarea name="notes" rows="3" class="border px-3 py-2 rounded w-full" placeholder="Текст описания">{{ client.notes or '' }}</textarea>
-    <div style="margin-top:10px">
-      <button class="px-4 py-2 bg-blue-600 text-white rounded">Сохранить</button>
+<!-- ===== Логотип + Описание ===== -->
+<div class="bg-white p-4 rounded shadow mb-6 flex gap-6 items-start">
+
+  <!-- Логотип -->
+  <div style="min-width:140px;text-align:center">
+    {% if client.logo_data %}
+      <img src="/clients/{{ client.id }}/logo"
+           alt="Логотип"
+           style="max-width:128px;max-height:128px;border-radius:8px;border:1px solid #e5e7eb;object-fit:contain;margin-bottom:8px"/>
+    {% else %}
+      <div style="width:128px;height:128px;border:2px dashed #e5e7eb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px;margin-bottom:8px">
+        Нет логотипа
+      </div>
+    {% endif %}
+
+    <form method="post" action="/clients/{{ client.id }}/upload-logo"
+          enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:6px;align-items:center">
+      <label style="cursor:pointer;font-size:12px;color:#1f64e2;text-decoration:underline">
+        {{ "Заменить" if client.logo_data else "Загрузить логотип" }}
+        <input type="file" name="logo" accept=".jpg,.jpeg,.png,.gif,.webp"
+               style="display:none" onchange="this.form.submit()"/>
+      </label>
+    </form>
+
+    {% if client.logo_data %}
+      <form method="post" action="/clients/{{ client.id }}/delete-logo" style="margin-top:4px">
+        <button class="btn small ghost" style="font-size:11px;color:#ef4444">Удалить</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <!-- Описание -->
+  <div style="flex:1">
+    <h2 class="font-semibold" style="margin:0 0 8px">Описание / доп. информация</h2>
+
+    <!-- Режим просмотра -->
+    <div id="notes-view">
+      <div style="white-space:pre-wrap;color:#374151;min-height:40px">{{ client.notes or '—' }}</div>
+      <button id="notes-edit-btn" class="btn small ghost" style="margin-top:8px" onclick="notesStartEdit()">Редактировать</button>
     </div>
-  </form>
+
+    <!-- Режим редактирования (скрыт по умолчанию) -->
+    <form id="notes-form" method="post" action="/clients/{{ client.id }}/update-notes" hidden>
+      <textarea name="notes" rows="4"
+                class="border px-3 py-2 rounded w-full"
+                style="margin-bottom:8px">{{ client.notes or '' }}</textarea>
+      <div style="display:flex;gap:8px">
+        <button class="btn small">Сохранить</button>
+        <button type="button" class="btn small ghost" onclick="notesCancelEdit()">Отмена</button>
+      </div>
+    </form>
+  </div>
 </div>
 
+<!-- ===== Форма выпуска лицензии ===== -->
 <div class="bg-white p-4 rounded shadow mb-6">
   <form method="post" action="/licenses/issue" class="flex items-end gap-3 flex-wrap">
-    <!-- скрытое поле client_id -->
     <input type="hidden" name="client_id" value="{{ client.id }}"/>
-
     <div class="flex-1 min-w-[240px]">
       <label class="block text-sm mb-1">Описание лицензии *</label>
       <input name="description" placeholder="Назначение / комментарий"
              class="border px-3 py-2 rounded w-full" required/>
     </div>
-
     <div>
       <label class="block text-sm mb-1">Срок действия</label>
-      <input type="date" name="expires_at"
-             class="border px-3 py-2 rounded"/>
+      <input type="date" name="expires_at" class="border px-3 py-2 rounded"/>
     </div>
-
     <div>
       <button class="px-4 py-2 bg-blue-600 text-white rounded">Выпустить</button>
     </div>
@@ -36,6 +76,7 @@
 </div>
 
 
+<!-- ===== Таблица лицензий ===== -->
 <h2 class="mt-6">Лицензии</h2>
 <div class="table-wrap" style="margin-top:10px">
   <table class="table-compact">
@@ -72,8 +113,8 @@
           {% else %}—{% endif %}
         </td>
         <td class="ellipsis w-280" title="{{ lic.device_id or '' }}">{{ lic.device_id or '—' }}</td>
-        <td class="ellipsis w-220" 
-          title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
+        <td class="ellipsis w-220"
+            title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
           {{ lic.expires_at.strftime('%Y-%m-%d') if lic.expires_at else 'бессрочно' }}
         </td>
         <td class="ellipsis w-280" title="{{ lic.description or '' }}">{{ lic.description or '—' }}</td>
@@ -87,25 +128,22 @@
           {% endif %}
         </td>
         <td class="right">
-          <!-- Ключ не показываем — только модалка -->
-          <button type="button"
-        class="btn small ghost"
-        data-open-keys='{{ (keys_payloads or {}).get(lic.id, []) | tojson }}'>
-  Ключи
-</button>
-
-
-
+          <button type="button" class="btn small ghost"
+                  data-open-keys='{{ (keys_payloads or {}).get(lic.id, []) | tojson }}'>
+            Ключи
+          </button>
           <a class="btn small ghost" href="/licenses/{{ lic.id }}/qrcode" target="_blank">QR</a>
 
-          <!-- Компактное выпадающее меню с операциями -->
           <details class="row-actions">
             <summary>Действия</summary>
             <div class="menu">
               <div class="line">
-                <form method="post" action="/licenses/{{ lic.id }}/reset" style="display:flex;gap:8px;align-items:center">
-                  <input class="input" name="reason" placeholder="Причина сброса" style="width:170px" required/>
-                  <input class="input" name="expires_at" placeholder="Срок (ISO, опц.)" style="width:150px"/>
+                <form method="post" action="/licenses/{{ lic.id }}/reset"
+                      style="display:flex;gap:8px;align-items:center">
+                  <input class="input" name="reason" placeholder="Причина сброса"
+                         style="width:170px" required/>
+                  <input class="input" name="expires_at" placeholder="Срок (ISO, опц.)"
+                         style="width:150px"/>
                   <button class="btn small amber">Сброс</button>
                 </form>
               </div>
@@ -117,8 +155,10 @@
               </div>
               {% else %}
               <div class="line">
-                <form method="post" action="/licenses/{{ lic.id }}/block" style="display:flex;gap:8px;align-items:center">
-                  <input class="input" name="reason" placeholder="Причина блокировки" style="width:240px" required/>
+                <form method="post" action="/licenses/{{ lic.id }}/block"
+                      style="display:flex;gap:8px;align-items:center">
+                  <input class="input" name="reason" placeholder="Причина блокировки"
+                         style="width:240px" required/>
                   <button class="btn small red">Блок</button>
                 </form>
               </div>
@@ -133,7 +173,7 @@
 </div>
 
 
-<!-- Модалка показа ключа -->
+<!-- ===== Модалка ключей ===== -->
 <div id="keysModal" class="modal" hidden>
   <div class="modal__backdrop" data-close></div>
   <div class="modal__card">
@@ -165,42 +205,50 @@
 </style>
 
 <script>
+// --- редактирование описания ---
+function notesStartEdit() {
+  document.getElementById('notes-view').hidden = true;
+  document.getElementById('notes-form').hidden = false;
+}
+function notesCancelEdit() {
+  document.getElementById('notes-form').hidden = true;
+  document.getElementById('notes-view').hidden = false;
+}
+
+// --- модалка ключей ---
 (function(){
   const modal = document.getElementById('keysModal');
   const list  = document.getElementById('keysList');
 
-  // открыть модалку
-  document.addEventListener('click', (e)=>{
+  document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-open-keys]');
     if (!btn) return;
-    const data = JSON.parse(btn.getAttribute('data-open-keys')||'[]');
+    const data = JSON.parse(btn.getAttribute('data-open-keys') || '[]');
     list.innerHTML = data.map(item => {
-      const status = item.active ? '<span class="badge ok">действует</span>' : '<span class="badge off">не действует</span>';
-      return `
-        <div class="keyrow">
-          <div class="key">${item.key}</div>
-          <div>
-            ${status}
-            <button class="btn small" data-copy="${item.key}">Копировать</button>
-          </div>
-        </div>`;
+      const status = item.active
+        ? '<span class="badge ok">действует</span>'
+        : '<span class="badge off">не действует</span>';
+      return `<div class="keyrow">
+        <div class="key">${item.key}</div>
+        <div>${status}<button class="btn small" data-copy="${item.key}">Копировать</button></div>
+      </div>`;
     }).join('') || '<div class="keyrow">Ключи отсутствуют</div>';
     modal.hidden = false;
   });
 
-  // закрыть
-  modal?.addEventListener('click', (e)=>{ if (e.target.hasAttribute('data-close')) modal.hidden = true; });
+  modal?.addEventListener('click', (e) => {
+    if (e.target.hasAttribute('data-close')) modal.hidden = true;
+  });
 
-  // копирование
-  document.addEventListener('click', (e)=>{
-    const copy = e.target.closest('[data-copy]'); if(!copy) return;
-    navigator.clipboard.writeText(copy.getAttribute('data-copy')).then(()=>{
+  document.addEventListener('click', (e) => {
+    const copy = e.target.closest('[data-copy]');
+    if (!copy) return;
+    navigator.clipboard.writeText(copy.getAttribute('data-copy')).then(() => {
       copy.textContent = 'Скопировано';
-      setTimeout(()=>copy.textContent='Копировать', 1200);
+      setTimeout(() => copy.textContent = 'Копировать', 1200);
     });
   });
 })();
 </script>
-
 
 {% endblock %}
