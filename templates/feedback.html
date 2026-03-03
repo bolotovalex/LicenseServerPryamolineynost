@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Обратная связь — License Server</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+  <style>
+    body{background:#f0f4f8;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:36px;width:100%;max-width:540px;box-shadow:0 4px 24px rgba(0,0,0,.07)}
+    h1{font-size:22px;font-weight:700;margin:0 0 6px;text-align:center}
+    .sub{font-size:13px;color:#64748b;text-align:center;margin-bottom:28px}
+    label{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+    .field{margin-bottom:16px}
+    select.input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+    textarea.input{resize:vertical;min-height:120px;font-family:inherit}
+    .char-count{font-size:11px;color:#94a3b8;text-align:right;margin-top:3px}
+    .char-count.warn{color:#f59e0b}
+    .char-count.over{color:#ef4444}
+    .errors{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+    .errors ul{margin:4px 0 0;padding-left:18px}
+    .success-box{background:#d1fae5;border:1px solid #6ee7b7;color:#065f46;border-radius:10px;padding:28px 24px;text-align:center}
+    .success-box .icon{font-size:40px;margin-bottom:12px}
+    .success-box .title{font-size:17px;font-weight:700;margin-bottom:6px}
+    .success-box .desc{font-size:13px;color:#047857}
+    .captcha-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:16px}
+    .captcha-q{font-size:14px;font-weight:600;margin-bottom:8px;color:#1e293b}
+    .captcha-input{width:100px}
+    .back{display:block;text-align:center;margin-top:20px;font-size:13px;color:#64748b;text-decoration:none}
+    .back:hover{color:#1e293b}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Обратная связь</h1>
+  <p class="sub">Напишите нам — мы ответим в ближайшее время</p>
+
+  {% if success %}
+  <div class="success-box">
+    <div class="icon">&#10003;</div>
+    <div class="title">Спасибо! Ваше обращение принято.</div>
+    <div class="desc">Мы свяжемся с вами в ближайшее время.</div>
+  </div>
+  {% else %}
+
+  {% if errors %}
+  <div class="errors">
+    <strong>Пожалуйста, исправьте ошибки:</strong>
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/feedback">
+
+    <div class="field">
+      <label>Название организации *</label>
+      <input name="org_name" class="input" type="text" maxlength="255"
+             value="{{ prefill_org }}"
+             {% if is_authenticated %}readonly{% endif %}
+             required placeholder="Ваша компания или ФИО"/>
+    </div>
+
+    <div class="field">
+      <label>Email для ответа</label>
+      <input name="contact_email" class="input" type="email" maxlength="255"
+             value="{{ prefill_email }}"
+             {% if is_authenticated %}readonly{% endif %}
+             placeholder="Необязательно"/>
+    </div>
+
+    <div class="field">
+      <label>Тема *</label>
+      <select name="subject" class="input" required>
+        <option value="" disabled {% if not form_subject %}selected{% endif %}>— выберите тему —</option>
+        {% for s in subjects %}
+          <option value="{{ s }}" {% if form_subject == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Сообщение * <span style="font-weight:400;color:#94a3b8">(макс. 2000 символов)</span></label>
+      <textarea id="msg" name="message" class="input" maxlength="2000"
+                required placeholder="Подробно опишите вашу проблему или вопрос...">{{ form_message or '' }}</textarea>
+      <div id="char-count" class="char-count">0 / 2000</div>
+    </div>
+
+    {% if not is_authenticated %}
+    <div class="captcha-box">
+      <div class="captcha-q">{{ captcha_q }}</div>
+      <input name="captcha_answer" class="input captcha-input" type="text"
+             inputmode="numeric" autocomplete="off"
+             placeholder="Ответ" required/>
+      <input type="hidden" name="captcha_sig" value="{{ captcha_sig }}"/>
+    </div>
+    {% else %}
+    <input type="hidden" name="captcha_answer" value=""/>
+    <input type="hidden" name="captcha_sig" value=""/>
+    {% endif %}
+
+    <button class="btn" style="width:100%">Отправить</button>
+  </form>
+  {% endif %}
+
+  <a href="/" class="back">← На главную</a>
+</div>
+
+<script>
+(function(){
+  var ta = document.getElementById('msg');
+  var cc = document.getElementById('char-count');
+  if (!ta || !cc) return;
+  function update(){
+    var n = ta.value.length;
+    cc.textContent = n + ' / 2000';
+    cc.className = 'char-count' + (n > 2000 ? ' over' : n > 1800 ? ' warn' : '');
+  }
+  ta.addEventListener('input', update);
+  update();
+})();
+</script>
+</body>
+</html>

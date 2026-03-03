@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{% block title %}License Server{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+  <style>
+    /* ── owner-specific overrides ─────────────────────────── */
+    body { background:#f1f5f9 }
+    .owner-nav {
+      background:#1e293b; color:#cbd5e1;
+      padding:0 24px; display:flex; align-items:center; gap:0;
+      height:48px; position:sticky; top:0; z-index:100;
+      box-shadow:0 1px 4px rgba(0,0,0,.25);
+    }
+    .owner-nav .brand {
+      font-weight:700; font-size:15px; color:#f8fafc;
+      margin-right:20px; white-space:nowrap;
+    }
+    .owner-nav a {
+      color:#94a3b8; text-decoration:none; font-size:13px;
+      padding:0 12px; height:48px; display:inline-flex; align-items:center;
+      transition:color .15s, background .15s;
+    }
+    .owner-nav a:hover { color:#f8fafc; background:rgba(255,255,255,.07) }
+    .owner-nav a.active { color:#60a5fa; border-bottom:2px solid #60a5fa }
+    .owner-nav .spacer { flex:1 }
+    .nav-badge {
+      display:inline-block; background:#ef4444; color:#fff;
+      font-size:10px; font-weight:700; border-radius:999px;
+      padding:1px 5px; margin-left:4px; line-height:1.4;
+    }
+    .owner-main { max-width:1280px; margin:0 auto; padding:28px 24px }
+
+    /* ── flash ────────────────────────────────────────────── */
+    .flash {
+      position:fixed; top:16px; right:16px; z-index:9999;
+      border-radius:10px; padding:12px 16px 12px 14px;
+      font-size:13px; line-height:1.5; max-width:500px;
+      box-shadow:0 6px 20px rgba(0,0,0,.15);
+      display:flex; align-items:flex-start; gap:10px;
+    }
+    .flash.success { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7 }
+    .flash.error   { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5 }
+    .flash.warn    { background:#fef3c7; color:#92400e; border:1px solid #fcd34d }
+    .flash-close {
+      margin-left:auto; cursor:pointer; color:inherit; opacity:.55;
+      font-size:16px; line-height:1; padding:0 2px; background:none; border:none;
+    }
+
+    /* ── password strength indicator ─────────────────────── */
+    .pw-strength { height:4px; border-radius:2px; margin-top:4px; transition:width .3s,background .3s }
+
+    /* ── badge extras ─────────────────────────────────────── */
+    .badge.purple { background:rgba(139,92,246,.08); color:#5b21b6; border-color:rgba(139,92,246,.25) }
+    .badge.orange { background:rgba(249,115,22,.08); color:#9a3412; border-color:rgba(249,115,22,.25) }
+    .badge.gray   { background:#f1f5f9; color:#64748b; border-color:#e2e8f0 }
+    .badge.yellow { background:rgba(234,179,8,.08); color:#713f12; border-color:rgba(234,179,8,.3) }
+
+    /* ── section card ─────────────────────────────────────── */
+    .section { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px; margin-bottom:20px }
+    .section-title {
+      font-size:14px; font-weight:600; color:#475569;
+      border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:16px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="owner-nav">
+  <span class="brand">&#9670; License Server</span>
+
+  {% set path = request.url.path %}
+  <a href="/owner/dashboard"  {% if path == '/owner/dashboard' %}class="active"{% endif %}>Панель</a>
+  <a href="/owner/clients"    {% if path.startswith('/owner/client') %}class="active"{% endif %}>Клиенты</a>
+  <a href="/owner/backup"     {% if path.startswith('/owner/backup') %}class="active"{% endif %}>Резервные копии</a>
+  <a href="/owner/feedback"   {% if path.startswith('/owner/feedback') %}class="active"{% endif %}>
+    Обратная связь
+    {% if feedback_count > 0 %}<span class="nav-badge">{{ feedback_count }}</span>{% endif %}
+  </a>
+  {% if admin.role == "superadmin" %}
+    <a href="/owner/logs"   {% if path.startswith('/owner/logs') %}class="active"{% endif %}>Журнал</a>
+    <a href="/owner/admins" {% if path.startswith('/owner/admins') %}class="active"{% endif %}>Администраторы</a>
+  {% endif %}
+
+  <span class="spacer"></span>
+  <a href="/owner/profile" {% if path == '/owner/profile' %}class="active"{% endif %}
+     style="font-size:12px;opacity:.8">{{ admin.email }}</a>
+  <a href="/logout" style="color:#f87171">Выход</a>
+</nav>
+
+{# ── Flash-сообщение (query param ?msg=...&msg_type=success|error|warn) ── #}
+{% set _msg  = request.query_params.get('msg', '') %}
+{% set _type = request.query_params.get('msg_type', 'success') %}
+{% if _msg %}
+<div id="flash-banner" class="flash {{ _type }}">
+  <span>{{ _msg }}</span>
+  <button class="flash-close" onclick="this.parentElement.remove()" title="Закрыть">&times;</button>
+</div>
+{% endif %}
+
+<main class="owner-main">
+  {% block content %}{% endblock %}
+</main>
+
+{% if _msg %}
+<script>
+(function(){
+  var el = document.getElementById('flash-banner');
+  if (!el) return;
+  setTimeout(function(){
+    el.style.transition = 'opacity .5s';
+    el.style.opacity = '0';
+    setTimeout(function(){ el.remove(); }, 500);
+  }, 5000);
+})();
+</script>
+{% endif %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,105 @@
+{% extends "base_owner.html" %}
+{% block title %}Профиль — License Server{% endblock %}
+
+{% block content %}
+<div style="max-width:480px;margin:0 auto">
+  <h1 style="margin-bottom:20px">Профиль</h1>
+
+  <div class="section" style="margin-bottom:16px">
+    <div class="section-title">Учётная запись</div>
+    <table style="width:100%;font-size:14px;border-collapse:collapse">
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 0;color:#64748b;width:140px">Email</td>
+        <td style="padding:8px 0"><strong>{{ admin.email }}</strong></td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 0;color:#64748b">Роль</td>
+        <td style="padding:8px 0">
+          {% if admin.role == 'superadmin' %}
+            <span class="badge purple">superadmin</span>
+          {% else %}
+            <span class="badge gray">admin</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 0;color:#64748b">Последний вход</td>
+        <td style="padding:8px 0;font-size:13px">
+          {{ admin.last_login_at.strftime('%Y-%m-%d %H:%M') if admin.last_login_at else '—' }}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Смена пароля</div>
+    <form method="post" action="/owner/profile">
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <div>
+          <label>Текущий пароль *</label>
+          <input name="current_password" class="input" type="password" required autocomplete="current-password"/>
+        </div>
+
+        <div>
+          <label>Новый пароль *</label>
+          <input id="new-pw" name="new_password" class="input" type="password" required
+                 autocomplete="new-password" oninput="updateStrength(this.value)"/>
+          <div id="pw-bar" class="pw-strength" style="width:0;background:#e2e8f0;margin-top:4px"></div>
+          <div id="pw-hints" style="font-size:11px;color:#94a3b8;margin-top:4px"></div>
+        </div>
+
+        <div>
+          <label>Подтверждение нового пароля *</label>
+          <input id="confirm-pw" name="confirm_password" class="input" type="password" required
+                 autocomplete="new-password" oninput="checkMatch()"/>
+          <div id="match-hint" style="font-size:11px;margin-top:4px"></div>
+        </div>
+
+        <div>
+          <button class="btn" id="submit-btn">Сменить пароль</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateStrength(pw) {
+  var bar    = document.getElementById('pw-bar');
+  var hints  = document.getElementById('pw-hints');
+  var issues = [];
+  var score  = 0;
+
+  if (pw.length >= 8)  score++; else issues.push('минимум 8 символов');
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw)) score++; else issues.push('заглавная буква');
+  if (/[0-9]/.test(pw)) score++; else issues.push('цифра');
+  if (/[^A-Za-z0-9]/.test(pw)) score++; else issues.push('спецсимвол');
+
+  var colors = ['#ef4444','#f59e0b','#f59e0b','#10b981','#10b981'];
+  bar.style.width      = pw.length ? (score * 20) + '%' : '0';
+  bar.style.background = pw.length ? colors[Math.min(score-1,4)] : '#e2e8f0';
+
+  hints.textContent = pw.length && issues.length ? 'Не хватает: ' + issues.join(', ') : '';
+  hints.style.color = issues.length ? '#f59e0b' : '#10b981';
+  checkMatch();
+}
+
+function checkMatch() {
+  var pw1   = document.getElementById('new-pw').value;
+  var pw2   = document.getElementById('confirm-pw').value;
+  var hint  = document.getElementById('match-hint');
+  if (!pw2) { hint.textContent = ''; return; }
+  if (pw1 === pw2) {
+    hint.textContent = '✓ Пароли совпадают';
+    hint.style.color = '#10b981';
+  } else {
+    hint.textContent = '✗ Пароли не совпадают';
+    hint.style.color = '#ef4444';
+  }
+}
+</script>
+{% endblock %}

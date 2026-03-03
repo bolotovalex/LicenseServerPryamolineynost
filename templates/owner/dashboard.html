@@ -1,0 +1,79 @@
+{% extends "base_owner.html" %}
+{% block title %}Панель — License Server{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <h1 style="margin:0">Панель управления</h1>
+  <a href="/owner/clients" class="btn small">+ Новый клиент</a>
+</div>
+
+<!-- Статистика -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
+  <div class="section" style="text-align:center;padding:20px">
+    <div style="font-size:32px;font-weight:700;color:#1f64e2">{{ rows|length }}</div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px">Клиентов</div>
+  </div>
+  <div class="section" style="text-align:center;padding:20px">
+    <div style="font-size:32px;font-weight:700;color:#10b981">
+      {{ rows|selectattr('is_active')|list|length }}
+    </div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px">Активных</div>
+  </div>
+  <div class="section" style="text-align:center;padding:20px">
+    <div style="font-size:32px;font-weight:700;color:#f59e0b">{{ feedback_count }}</div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px">Новых сообщений</div>
+  </div>
+  <div class="section" style="text-align:center;padding:20px">
+    <div style="font-size:32px;font-weight:700;color:#8b5cf6">
+      {{ rows|map(attribute='keys_count')|sum }}
+    </div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px">Всего лицензий</div>
+  </div>
+</div>
+
+<!-- Таблица клиентов -->
+<div class="section" style="padding:0;overflow:hidden">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+    <span class="section-title" style="margin:0;border:none;padding:0">Клиенты</span>
+    <a href="/owner/clients" class="btn small ghost">Все клиенты</a>
+  </div>
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Организация</th>
+          <th>Email</th>
+          <th class="right">Ключей</th>
+          <th class="right">Лимит</th>
+          <th>Статус</th>
+          <th class="right">Открыть</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for id, org_name, email, max_keys, is_active, keys_count in rows %}
+        <tr>
+          <td style="color:#94a3b8;font-size:12px">{{ id }}</td>
+          <td><strong>{{ org_name }}</strong></td>
+          <td style="color:#64748b;font-size:12px">{{ email or '—' }}</td>
+          <td class="right">{{ keys_count }}</td>
+          <td class="right" style="color:#94a3b8">{{ max_keys }}</td>
+          <td>
+            {% if is_active %}
+              <span class="badge success">активен</span>
+            {% else %}
+              <span class="badge danger">отключён</span>
+            {% endif %}
+          </td>
+          <td class="right">
+            <a class="btn small ghost" href="/owner/clients/{{ id }}">Карточка</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">Клиентов пока нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

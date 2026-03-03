@@ -1,0 +1,134 @@
+{% extends "base_owner.html" %}
+{% block title %}Журнал аудита — License Server{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <h1 style="margin:0">Журнал аудита</h1>
+  <a class="btn small ghost" href="/owner/logs/export?actor_type={{ actor_type }}&action={{ action }}&date_from={{ date_from }}&date_to={{ date_to }}&success={{ success }}">
+    ↓ Экспорт CSV
+  </a>
+</div>
+
+<!-- Фильтры -->
+<div class="section" style="padding:14px 20px">
+  <form method="get" action="/owner/logs" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div>
+      <label>Тип актора</label>
+      <input name="actor_type" class="input" placeholder="api_client, owner…"
+             value="{{ actor_type }}" style="height:36px;width:150px"/>
+    </div>
+    <div>
+      <label>Действие</label>
+      <input name="action" class="input" placeholder="activate, login…"
+             value="{{ action }}" style="height:36px;width:140px"/>
+    </div>
+    <div>
+      <label>С</label>
+      <input name="date_from" class="input" type="date" value="{{ date_from }}" style="height:36px"/>
+    </div>
+    <div>
+      <label>По</label>
+      <input name="date_to" class="input" type="date" value="{{ date_to }}" style="height:36px"/>
+    </div>
+    <div>
+      <label>Результат</label>
+      <select name="success" class="input" style="height:36px;padding:4px 10px">
+        <option value=""      {% if success==''      %}selected{% endif %}>Все</option>
+        <option value="true"  {% if success=='true'  %}selected{% endif %}>Успешно</option>
+        <option value="false" {% if success=='false' %}selected{% endif %}>Ошибка</option>
+      </select>
+    </div>
+    <div>
+      <button class="btn small">Применить</button>
+      <a href="/owner/logs" class="btn small ghost" style="margin-left:4px">Сбросить</a>
+    </div>
+  </form>
+</div>
+
+<!-- Статистика страницы -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px;color:#64748b">
+  <span>
+    Найдено: {{ total }} записей
+    {% if total > per_page %}· Страница {{ page + 1 }} из {{ ((total - 1) // per_page + 1) }}{% endif %}
+  </span>
+</div>
+
+<!-- Таблица -->
+<div class="section" style="padding:0;overflow:hidden">
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Актор</th>
+          <th>IP</th>
+          <th>Действие</th>
+          <th>Объект</th>
+          <th>Детали</th>
+          <th>Результат</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in items %}
+        <tr {% if not e.success %}style="background:#fff5f5"{% endif %}>
+          <td style="white-space:nowrap;font-size:12px;color:#64748b">
+            {{ e.at.strftime('%Y-%m-%d %H:%M:%S') }}
+          </td>
+          <td style="font-size:12px">
+            <span style="color:#374151">{{ e.actor_type }}</span>
+            {% if e.actor_login %}
+              <br><span style="color:#64748b;font-size:11px">{{ e.actor_login }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size:11px;color:#94a3b8;white-space:nowrap">
+            {{ e.ip_address or '—' }}
+          </td>
+          <td>
+            <span class="badge" style="font-size:11px">{{ e.action }}</span>
+          </td>
+          <td style="font-size:12px;color:#64748b">
+            {% if e.entity_type %}{{ e.entity_type }}{% if e.entity_id %}:{{ e.entity_id }}{% endif %}{% else %}—{% endif %}
+          </td>
+          <td class="ellipsis w-300" style="font-size:11px;color:#64748b"
+              title="{{ e.details or '' }}">
+            {{ e.details or '—' }}
+          </td>
+          <td>
+            {% if e.success %}
+              <span class="badge success" style="font-size:11px">ok</span>
+            {% else %}
+              <span class="badge danger" style="font-size:11px">fail</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">Записей нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Пагинация -->
+{% if total > per_page %}
+  {% set pages = ((total - 1) // per_page + 1) %}
+  {% set base_url = '/owner/logs?actor_type=' ~ actor_type ~ '&action=' ~ action ~ '&date_from=' ~ date_from ~ '&date_to=' ~ date_to ~ '&success=' ~ success %}
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+    {% if page > 0 %}
+      <a href="{{ base_url }}&page={{ page - 1 }}" class="btn small ghost">← Назад</a>
+    {% endif %}
+
+    {% for p in range([0, page - 2]|max, [pages, page + 3]|min) %}
+      <a href="{{ base_url }}&page={{ p }}"
+         class="btn small {% if p == page %}{% else %}ghost{% endif %}"
+         {% if p == page %}style="background:#1f64e2;color:#fff"{% endif %}>
+        {{ p + 1 }}
+      </a>
+    {% endfor %}
+
+    {% if page < pages - 1 %}
+      <a href="{{ base_url }}&page={{ page + 1 }}" class="btn small ghost">Вперёд →</a>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base_owner.html" %}
+{% block title %}Администраторы — License Server{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <h1 style="margin:0">Администраторы</h1>
+  <a href="/owner/admins/new" class="btn small">+ Создать</a>
+</div>
+
+<div class="section" style="padding:0;overflow:hidden">
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Роль</th>
+          <th>Статус</th>
+          <th>Создан</th>
+          <th>Последний вход</th>
+          <th class="right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in admins %}
+        <tr {% if not u.is_active %}style="opacity:.6"{% endif %}>
+          <td style="color:#94a3b8;font-size:11px">{{ u.id }}</td>
+          <td>
+            {{ u.email }}
+            {% if u.id == admin.id %}
+              <span class="badge" style="font-size:10px;margin-left:4px">вы</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.role == 'superadmin' %}
+              <span class="badge purple">superadmin</span>
+            {% else %}
+              <span class="badge gray">admin</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge success">активен</span>
+            {% else %}
+              <span class="badge danger">отключён</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:#64748b">
+            {{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}
+          </td>
+          <td style="font-size:12px;color:#64748b">
+            {{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}
+          </td>
+          <td class="right" style="white-space:nowrap">
+            {% if u.id != admin.id %}
+              <!-- Сброс пароля -->
+              <form method="post" action="/owner/admins/{{ u.id }}/reset-password" style="display:inline"
+                    onsubmit="return confirm('Сбросить пароль для {{ u.email }}?')">
+                <button class="btn small amber">Сбросить пароль</button>
+              </form>
+
+              <!-- Переключить активность -->
+              <form method="post" action="/owner/admins/{{ u.id }}/toggle-active" style="display:inline">
+                {% if u.is_active %}
+                  <button class="btn small ghost" style="color:#ef4444;border-color:#fca5a5">Отключить</button>
+                {% else %}
+                  <button class="btn small green">Включить</button>
+                {% endif %}
+              </form>
+
+              <!-- Удалить -->
+              <form method="post" action="/owner/admins/{{ u.id }}/delete" style="display:inline"
+                    onsubmit="return confirm('Удалить администратора {{ u.email }}?')">
+                <button class="btn small red">Удалить</button>
+              </form>
+            {% else %}
+              <span style="font-size:12px;color:#94a3b8">текущий аккаунт</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">Нет администраторов</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

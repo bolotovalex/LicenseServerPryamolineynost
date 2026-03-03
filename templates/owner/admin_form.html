@@ -1,0 +1,82 @@
+{% extends "base_owner.html" %}
+{% block title %}Новый администратор — License Server{% endblock %}
+
+{% block content %}
+<div style="max-width:520px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+    <a href="/owner/admins" style="color:#64748b;font-size:13px">← Администраторы</a>
+    <span style="color:#cbd5e1">/</span>
+    <h1 style="margin:0;font-size:22px">Новый администратор</h1>
+  </div>
+
+  <div class="section">
+    <form method="post" action="/owner/admins/new">
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <div>
+          <label>Email *</label>
+          <input name="email" class="input" type="email" placeholder="admin@example.com" required autofocus/>
+        </div>
+
+        <div>
+          <label>Пароль (пусто = сгенерировать автоматически)</label>
+          <div style="display:flex;gap:8px">
+            <input id="adm-password" name="password" class="input"
+                   placeholder="Оставьте пустым" autocomplete="off" style="flex:1"/>
+            <button type="button" class="btn small ghost" onclick="genAdminPassword()">Сгенерировать</button>
+          </div>
+          <div id="adm-pw-bar" class="pw-strength" style="width:0;background:#e2e8f0;margin-top:4px"></div>
+          <p style="font-size:11px;color:#94a3b8;margin:4px 0 0">
+            Если пусто — пароль будет показан один раз после создания.
+          </p>
+        </div>
+
+        <div>
+          <label>Роль</label>
+          <select name="role" class="input">
+            <option value="admin">admin — стандартный администратор</option>
+            <option value="superadmin">superadmin — полный доступ</option>
+          </select>
+        </div>
+
+        <div style="display:flex;gap:10px;padding-top:4px">
+          <button class="btn">Создать</button>
+          <a href="/owner/admins" class="btn ghost">Отмена</a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function genAdminPassword() {
+  fetch('/owner/internal/generate-password')
+    .then(r => r.json())
+    .then(d => {
+      var el = document.getElementById('adm-password');
+      el.value = d.password;
+      el.type  = 'text';
+      updateBar(el.value);
+    });
+}
+
+function updateBar(pw) {
+  var bar = document.getElementById('adm-pw-bar');
+  if (!bar) return;
+  var score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  var colors = ['#ef4444','#f59e0b','#f59e0b','#10b981','#10b981'];
+  bar.style.width      = (score * 20) + '%';
+  bar.style.background = pw.length ? colors[Math.min(score-1,4)] : '#e2e8f0';
+}
+
+var pwEl = document.getElementById('adm-password');
+if (pwEl) pwEl.addEventListener('input', function() { updateBar(this.value); });
+</script>
+{% endblock %}

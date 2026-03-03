@@ -5,45 +5,48 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Вход — License Server</title>
   <link rel="stylesheet" href="/static/styles.css"/>
-  <link rel="stylesheet" href="/static/tailwind.min.css"/>
+  <style>
+    body{background:#f0f4f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:36px;width:100%;max-width:380px;box-shadow:0 4px 24px rgba(0,0,0,.07)}
+    h1{font-size:20px;font-weight:700;margin:0 0 24px;text-align:center;color:#1e293b}
+    label{display:block;font-size:13px;font-weight:500;margin-bottom:5px}
+    .field{margin-bottom:16px}
+    .alert{border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+    .alert.error{background:#fee2e2;border:1px solid #fca5a5;color:#991b1b}
+    .alert.success{background:#d1fae5;border:1px solid #6ee7b7;color:#065f46}
+    .alert.warn{background:#fef3c7;border:1px solid #fcd34d;color:#92400e}
+    .links{display:flex;justify-content:space-between;margin-top:16px;font-size:13px}
+    .links a{color:#64748b;text-decoration:none}
+    .links a:hover{color:#1e293b;text-decoration:underline}
+  </style>
 </head>
-<body class="bg-slate-100 min-h-screen flex items-center justify-center">
-<div class="bg-white rounded-xl shadow-md w-full max-w-sm p-8">
-  <h1 class="text-xl font-semibold mb-6 text-center">License Server</h1>
+<body>
+<div class="card">
+  <h1>License Server</h1>
 
   {% if error %}
-  <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-    {{ error }}
-  </div>
+  <div class="alert error">{{ error }}</div>
   {% endif %}
 
-  <form method="post" action="/login" class="flex flex-col gap-4">
-    <div>
-      <label class="block text-sm font-medium mb-1">Email или логин</label>
-      <input name="login" type="text" autocomplete="username"
-             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-             required autofocus/>
+  {% if flash_msg %}
+  <div class="alert {{ flash_type or 'success' }}">{{ flash_msg }}</div>
+  {% endif %}
+
+  <form method="post" action="/login">
+    <div class="field">
+      <label>Email или логин</label>
+      <input name="login" type="text" class="input" autocomplete="username" required autofocus/>
     </div>
-    <div>
-      <label class="block text-sm font-medium mb-1">Пароль</label>
-      <input name="password" type="password" autocomplete="current-password"
-             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-             required/>
+    <div class="field">
+      <label>Пароль</label>
+      <input name="password" type="password" class="input" autocomplete="current-password" required/>
     </div>
-    <button type="submit"
-            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
-      Войти
-    </button>
+    <button class="btn" style="width:100%">Войти</button>
   </form>
 
-  {% if info %}
-  <div class="mt-4 px-4 py-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-sm">
-    {{ info }}
-  </div>
-  {% endif %}
-
-  <div class="mt-4 text-center">
-    <a href="/forgot-password" class="text-sm text-blue-600 hover:underline">Забыли пароль?</a>
+  <div class="links">
+    <a href="/forgot-password">Забыли пароль?</a>
+    <a href="/feedback">Обратная связь</a>
   </div>
 </div>
 </body>
