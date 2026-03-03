@@ -106,20 +106,50 @@
 </div>
 
 
-<!-- ═══════════════ БЛОК 2: ГЕНЕРАЦИЯ КЛЮЧЕЙ ═══════════════ -->
-<div class="section">
-  <div class="section-title">
-    Генерация лицензий
-    <span style="font-weight:400;color:#94a3b8;font-size:12px">
-      — выдано {{ total_keys }} из {{ client.max_keys }}
-    </span>
+{% if excess_licenses %}
+<!-- ═══════════════ ПРЕДУПРЕЖДЕНИЕ: ПРЕВЫШЕНИЕ КВОТЫ ═══════════════ -->
+<div class="section" style="border-color:#fca5a5;background:#fef2f2;padding:16px 20px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span style="font-size:18px">&#9888;</span>
+    <strong style="color:#991b1b">
+      Превышение квоты: {{ total_keys }} лиц. при лимите {{ client.max_keys }}
+      — необходимо заблокировать {{ excess_licenses|length }} шт.
+    </strong>
   </div>
-
-  {% if max_allowed <= 0 %}
-    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px">
-      &#9888; Квота исчерпана ({{ total_keys }}/{{ client.max_keys }}). Увеличьте лимит в информации выше.
+  <div style="display:flex;flex-direction:column;gap:8px">
+    {% for lic in excess_licenses %}
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #fecaca;
+                border-radius:8px;padding:10px 14px;flex-wrap:wrap">
+      <code style="font-size:12px;color:#334155;flex:0 0 auto">{{ lic.key }}</code>
+      <span style="font-size:12px;color:#64748b;flex:1">{{ lic.description or '—' }}</span>
+      <form method="post" action="/owner/licenses/{{ lic.id }}/block" style="flex:0 0 auto">
+        <input type="hidden" name="reason" value="превышение квоты лицензий"/>
+        <button class="btn small red"
+                onclick="return confirm('Заблокировать лицензию {{ lic.key[:8] }}…?')">
+          Заблокировать
+        </button>
+      </form>
     </div>
-  {% else %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════ БЛОК 3: ТАБЛИЦА КЛЮЧЕЙ ═══════════════ -->
+<div class="section" style="padding:0;overflow:visible">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+    <span class="section-title" style="margin:0;border:none;padding:0">
+      Лицензии
+      <span style="font-weight:400;color:#94a3b8;font-size:12px">{{ total_keys }}/{{ client.max_keys }}</span>
+    </span>
+    {% if max_allowed > 0 %}
+      <button type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
+    {% else %}
+      <span style="font-size:12px;color:#ef4444">Квота исчерпана — увеличьте лимит в блоке информации</span>
+    {% endif %}
+  </div>
+  {% if max_allowed > 0 %}
+  <div id="issueForm" style="display:none;padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#f8fafc">
     <form method="post" action="/owner/clients/{{ client.id }}/generate">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
         <div>
@@ -134,45 +164,51 @@
           <label>Срок действия {% if client.key_ttl_days %}(+{{ client.key_ttl_days }} дн.){% endif %}</label>
           <input name="expires_at" class="input" type="date" value="{{ default_expires }}"/>
         </div>
-        <div>
+        <div style="display:flex;gap:6px">
           <button class="btn">Выпустить</button>
+          <button type="button" class="btn small ghost" onclick="toggleIssueForm()">Отмена</button>
         </div>
       </div>
     </form>
-  {% endif %}
-</div>
-
-
-<!-- ═══════════════ БЛОК 3: ТАБЛИЦА КЛЮЧЕЙ ═══════════════ -->
-<div class="section" style="padding:0;overflow:hidden">
-  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0">
-    <span class="section-title" style="margin:0;border:none;padding:0">Лицензии</span>
   </div>
+  {% endif %}
 
   {% if not licenses %}
     <div style="padding:32px;text-align:center;color:#94a3b8">Лицензий нет</div>
   {% else %}
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
     <table class="table-compact">
+      <colgroup>
+        <col style="width:42px">
+        <col style="width:130px">
+        <col style="width:34px">
+        <col style="width:90px">
+        <col>
+        <col style="width:88px">
+        <col style="width:88px">
+        <col style="width:80px">
+        <col>
+        <col style="width:96px">
+      </colgroup>
       <thead>
         <tr>
-          <th>ID</th>
+          <th style="text-align:center">ID</th>
           <th>Ключ</th>
-          <th>ver</th>
-          <th>Статус</th>
-          <th>Устройство</th>
-          <th>Выдан</th>
-          <th>Активирован</th>
-          <th>До</th>
+          <th style="text-align:center">ver</th>
+          <th style="text-align:center">Статус</th>
+          <th style="text-align:center">Устройство</th>
+          <th style="text-align:center">Выдан</th>
+          <th style="text-align:center">Активирован</th>
+          <th style="text-align:center">До</th>
           <th>Описание</th>
-          <th class="right">Действия</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
       {% for lic in licenses %}
         {% set is_expired = lic.expires_at and lic.expires_at < now %}
         <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
-          <td style="color:#94a3b8;font-size:11px">{{ lic.id }}</td>
+          <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.id }}</td>
 
           <!-- Ключ -->
           <td>
@@ -181,10 +217,10 @@
                     onclick="copyKey('{{ lic.key }}', this)" title="Копировать ключ">&#128203;</button>
           </td>
 
-          <td style="color:#94a3b8;font-size:11px">{{ lic.version }}</td>
+          <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.version }}</td>
 
           <!-- Статус -->
-          <td>
+          <td style="text-align:center">
             {% if lic.is_blocked %}
               <span class="badge danger" title="{{ lic.block_reason or '' }}">blocked</span>
             {% elif is_expired %}
@@ -196,18 +232,19 @@
             {% endif %}
           </td>
 
-          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}" style="font-size:11px">
+          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
+              style="font-size:11px;text-align:center">
             {{ lic.device_id or '—' }}
           </td>
-          <td style="white-space:nowrap;font-size:12px"
+          <td style="white-space:nowrap;font-size:12px;text-align:center"
               title="{{ lic.issued_at.isoformat(sep=' ', timespec='seconds') if lic.issued_at else '' }}">
             {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
           </td>
-          <td style="white-space:nowrap;font-size:12px"
+          <td style="white-space:nowrap;font-size:12px;text-align:center"
               title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') if lic.activated_at else '' }}">
             {{ lic.activated_at.strftime('%Y-%m-%d') if lic.activated_at else '—' }}
           </td>
-          <td style="white-space:nowrap;font-size:12px"
+          <td style="white-space:nowrap;font-size:12px;text-align:center"
               title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
             {% if lic.expires_at %}
               <span {% if is_expired %}style="color:#ef4444"{% endif %}>
@@ -288,21 +325,38 @@
   {% else %}
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
     <table class="table-compact">
+      <colgroup>
+        <col style="width:130px">
+        <col style="width:48px">
+        <col style="width:80px">
+        <col style="width:100px">
+        <col>
+        <col>
+      </colgroup>
       <thead>
         <tr>
           <th>Дата</th>
-          <th>Действие</th>
+          <th style="text-align:center">Лиц.</th>
+          <th style="text-align:center">Ключ</th>
+          <th style="text-align:center">Действие</th>
           <th>Описание</th>
           <th>Причина / Актор</th>
         </tr>
       </thead>
       <tbody>
       {% for e in log_entries %}
+        {% set key_tail = (lic_key.get(e.get('license_id')) or '')[-4:] %}
         <tr>
           <td style="white-space:nowrap;font-size:12px;color:#64748b">
             {{ e.at.strftime('%Y-%m-%d %H:%M') }}
           </td>
-          <td>
+          <td style="text-align:center;font-size:11px;color:#94a3b8">
+            {% if e.get('license_id') %}#{{ e.license_id }}{% else %}—{% endif %}
+          </td>
+          <td style="text-align:center;font-size:11px;font-family:monospace;color:#64748b">
+            {% if key_tail %}…{{ key_tail }}{% else %}—{% endif %}
+          </td>
+          <td style="text-align:center">
             {% set act = e.action %}
             {% if act == 'issue' %}
               <span class="badge new">issue</span>
@@ -391,6 +445,12 @@
 
 {% block scripts %}
 <script>
+// ── Форма выдачи лицензии ──
+function toggleIssueForm() {
+  var f = document.getElementById('issueForm');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
 // ── Модалка сброса пароля ──
 function openResetPwModal() {
   document.getElementById('resetPwModal').style.display = 'grid';

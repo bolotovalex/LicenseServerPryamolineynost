@@ -1,0 +1,93 @@
+{% extends "base_owner.html" %}
+{% block title %}Резервные копии — License Server{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+  <h1 style="margin:0;font-size:22px">Резервные копии</h1>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+
+    <form method="post" action="/owner/backup/create">
+      <button class="btn">+ Создать резервную копию</button>
+    </form>
+
+    <form method="post" action="/owner/backup/upload" enctype="multipart/form-data">
+      <label class="btn small ghost" style="cursor:pointer">
+        &#8593; Загрузить файл
+        <input type="file" name="file" accept=".json" required style="display:none"
+               onchange="this.form.submit()"/>
+      </label>
+    </form>
+
+  </div>
+</div>
+
+{% if error %}
+<div class="section" style="background:#fef2f2;border-color:#fecaca;padding:14px 18px;color:#991b1b;margin-bottom:16px">
+  <strong>Ошибка:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if restored %}
+<div class="section" style="background:#f0fdf4;border-color:#86efac;padding:14px 18px;color:#14532d;margin-bottom:16px">
+  <strong>Восстановление из «{{ restored }}» завершено успешно.</strong>
+  <ul style="margin:8px 0 0 18px;font-size:13px">
+    {% for table, count in restore_stats.items() %}
+      <li>{{ table }}: {{ count }} записей</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="section" style="padding:0;overflow:hidden">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0">
+    <span class="section-title" style="margin:0;border:none;padding:0">Файлы резервных копий</span>
+  </div>
+
+  {% if backups %}
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>Файл</th>
+          <th>Дата</th>
+          <th class="right">Размер</th>
+          <th class="right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for b in backups %}
+        <tr>
+          <td style="font-family:ui-monospace,monospace;font-size:12px">{{ b.name }}</td>
+          <td style="white-space:nowrap;font-size:12px;color:#64748b">
+            {{ b.mtime.strftime('%d.%m.%Y %H:%M') }}
+          </td>
+          <td class="right" style="font-size:12px;color:#94a3b8;white-space:nowrap">
+            {{ (b.size / 1024) | round(1) }} КБ
+          </td>
+          <td class="right" style="white-space:nowrap">
+            <div style="display:inline-flex;gap:6px;align-items:center">
+              <a href="/owner/backup/download/{{ b.name }}" class="btn small ghost">Скачать</a>
+              <form method="post" action="/owner/backup/restore/{{ b.name }}"
+                    onsubmit="return confirm('Все текущие данные будут заменены данными из «{{ b.name }}». Продолжить?')">
+                <button class="btn small amber">Восстановить</button>
+              </form>
+              <form method="post" action="/owner/backup/delete/{{ b.name }}"
+                    onsubmit="return confirm('Удалить файл «{{ b.name }}»?')">
+                <button class="btn small ghost" style="color:#ef4444">Удалить</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:48px;text-align:center;color:#94a3b8">
+    <div style="font-size:36px;margin-bottom:12px">&#128190;</div>
+    <div style="font-size:14px">Резервных копий пока нет</div>
+    <div style="font-size:12px;margin-top:6px">Нажмите «Создать резервную копию» или загрузите файл</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

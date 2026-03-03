@@ -2,7 +2,13 @@
 {% block title %}Лицензии — {{ org.org_name }}{% endblock %}
 
 {% block content %}
-<h1 style="margin:0 0 20px;font-size:22px">Мои лицензии</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+  <h1 style="margin:0;font-size:22px">Мои лицензии</h1>
+  {% set quota_left = org.max_keys - stats_total %}
+  {% if quota_left > 0 %}
+    <button type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
+  {% endif %}
+</div>
 
 <!-- Статистика -->
 <div class="stat-bar">
@@ -24,11 +30,39 @@
   </div>
 </div>
 
+<!-- Форма выпуска лицензии (скрыта по умолчанию) -->
+{% set quota_left = org.max_keys - stats_total %}
+{% if quota_left > 0 %}
+<div id="issueForm" class="org-card" style="display:none;margin-bottom:12px">
+  <div class="org-card-title">Новая лицензия</div>
+  <form method="post" action="/org/licenses/generate">
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <label>Описание (необязательно)</label>
+        <input name="description" class="input" placeholder="Назначение лицензии"
+               maxlength="255"/>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn">Выпустить</button>
+        <button type="button" class="btn ghost" onclick="toggleIssueForm()">Отмена</button>
+      </div>
+    </div>
+    {% if org.key_ttl_days %}
+      <div style="font-size:12px;color:#94a3b8;margin-top:8px">
+        Срок действия: {{ org.key_ttl_days }} дней от выпуска
+      </div>
+    {% endif %}
+  </form>
+</div>
+{% endif %}
+
 <!-- Таблица лицензий -->
 <div class="org-card" style="padding:0;overflow:hidden">
   {% if not licenses %}
     <div style="padding:40px;text-align:center;color:#94a3b8">
-      Лицензий пока нет. Обратитесь к вашему менеджеру.
+      Лицензий пока нет.
+      {% if quota_left > 0 %}Нажмите «Выпустить лицензию» выше.
+      {% else %}Обратитесь к вашему менеджеру.{% endif %}
     </div>
   {% else %}
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
@@ -69,9 +103,15 @@
           </td>
 
           <!-- Устройство -->
-          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
-              style="font-size:12px;color:#64748b">
-            {{ lic.device_id or '—' }}
+          <td style="font-size:12px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ (lic.device_name or '') + (' · ' + lic.device_id if lic.device_id else '') }}">
+            {% if lic.device_name %}
+              {{ lic.device_name }}
+            {% elif lic.device_id %}
+              <span style="font-family:monospace">{{ lic.device_id[:16] }}…</span>
+            {% else %}
+              —
+            {% endif %}
           </td>
 
           <!-- Активирован -->
@@ -93,8 +133,8 @@
           </td>
 
           <!-- Описание -->
-          <td class="ellipsis w-280" title="{{ lic.description or '' }}"
-              style="font-size:13px">
+          <td style="font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="{{ lic.description or '' }}">
             {{ lic.description or '—' }}
           </td>
 
@@ -106,6 +146,11 @@
                     title="Копировать ключ в буфер обмена">
               Копировать
             </button>
+
+            <!-- Изменить описание -->
+            <button type="button" class="btn small ghost"
+                    onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}')"
+                    title="Изменить описание">Изм.</button>
 
             <!-- Деактивировать (только у активированных, незаблокированных) -->
             {% if lic.activated_at and not lic.is_blocked %}
@@ -130,13 +175,47 @@
   При потере доступа к устройству нажмите «Деактивировать» для переноса лицензии.
 </p>
 {% endif %}
+
+<!-- Модалка редактирования описания -->
+<div id="editModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeEditModal()"></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              padding:24px;width:380px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="font-size:15px">Изменить описание</strong>
+      <button onclick="closeEditModal()"
+              style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">&times;</button>
+    </div>
+    <form id="editForm" method="post">
+      <input name="description" id="editDesc" class="input" style="margin-bottom:14px" maxlength="255"/>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn small ghost" onclick="closeEditModal()">Отмена</button>
+        <button type="submit" class="btn small">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+function toggleIssueForm() {
+  var f = document.getElementById('issueForm');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+function openEditModal(licId, desc) {
+  document.getElementById('editForm').action = '/org/licenses/' + licId + '/edit';
+  document.getElementById('editDesc').value = desc;
+  document.getElementById('editModal').style.display = 'grid';
+  document.getElementById('editDesc').focus();
+}
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
 function copyKey(key, btn) {
   if (!navigator.clipboard) {
-    // fallback для старых браузеров
     var ta = document.createElement('textarea');
     ta.value = key;
     ta.style.position = 'fixed';
@@ -160,5 +239,9 @@ function showCopied(btn) {
     btn.disabled = false;
   }, 2000);
 }
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeEditModal();
+});
 </script>
 {% endblock %}

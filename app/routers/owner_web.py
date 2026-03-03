@@ -19,7 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db import get_session
-from app.models import AdminUser, AuditLog, Client, Feedback, License, LicenseAction, LicenseKey
+from sqlalchemy.orm import selectinload
+
+from app.models import AdminUser, AuditLog, Client, Feedback, FeedbackMessage, License, LicenseAction, LicenseKey
 from app.password import generate_password, validate_password
 from app.security import hash_password, require_owner, verify_password
 from app.utils import generate_license_key, make_qr_png
@@ -190,9 +192,17 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
     available   = max(0, client.max_keys - total_keys)
     max_allowed = min(50, available)
 
+    # Лишние лицензии (если max_keys снижен)
+    excess_licenses: list = []
+    if total_keys > client.max_keys:
+        excess_count   = total_keys - client.max_keys
+        non_blocked    = sorted([l for l in licenses if not l.is_blocked], key=lambda x: x.issued_at)
+        excess_licenses = non_blocked[:excess_count]
+
     # Блок 4: журнал (LicenseAction + AuditLog)
     license_ids = [l.id for l in licenses]
     log_entries: list[dict] = []
+    lic_key: dict = {}
 
     if license_ids:
         actions = (await db.execute(
@@ -203,16 +213,18 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         )).scalars().all()
 
         lic_desc = {l.id: l.description for l in licenses}
+        lic_key  = {l.id: l.key          for l in licenses}
         for a in actions:
             log_entries.append({
-                "at":     a.at,
-                "action": a.action,
-                "desc":   f"#{a.license_id} {lic_desc.get(a.license_id, '')}",
-                "reason": a.reason,
-                "actor":  None,
-                "ip":     None,
-                "success": True,
-                "source": "action",
+                "at":         a.at,
+                "action":     a.action,
+                "license_id": a.license_id,
+                "desc":       lic_desc.get(a.license_id, ""),
+                "reason":     a.reason,
+                "actor":      None,
+                "ip":         None,
+                "success":    True,
+                "source":     "action",
             })
 
         audit_rows = (await db.execute(
@@ -224,14 +236,15 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
 
         for a in audit_rows:
             log_entries.append({
-                "at":     a.at,
-                "action": a.action,
-                "desc":   a.details or "",
-                "reason": None,
-                "actor":  a.actor_login or a.actor_type,
-                "ip":     a.ip_address,
-                "success": a.success,
-                "source": "audit",
+                "at":         a.at,
+                "action":     a.action,
+                "license_id": a.entity_id,
+                "desc":       a.details or "",
+                "reason":     None,
+                "actor":      a.actor_login or a.actor_type,
+                "ip":         a.ip_address,
+                "success":    a.success,
+                "source":     "audit",
             })
 
     log_entries.sort(key=lambda x: x["at"], reverse=True)
@@ -257,9 +270,11 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         total_keys=total_keys,
         available=available,
         max_allowed=max_allowed,
+        excess_licenses=excess_licenses,
         log_entries=log_entries,
         creator=creator,
         default_expires=default_expires,
+        lic_key=lic_key,
     )
     return templates.TemplateResponse("owner/client_detail.html", ctx)
 
@@ -288,6 +303,19 @@ async def client_update_info(
     client.max_keys      = max_keys
     client.key_ttl_days  = int(key_ttl_days) if key_ttl_days else None
     await db.commit()
+
+    # Предупреждение при превышении квоты
+    total = (await db.execute(
+        select(func.count(License.id)).where(License.client_id == client_id)
+    )).scalar_one()
+    if total > max_keys:
+        over = total - max_keys
+        return _flash(
+            f"/owner/clients/{client_id}",
+            f"Информация обновлена. Внимание: выпущено {total} лицензий при лимите {max_keys} — "
+            f"{over} шт. превышают квоту. Заблокируйте лишние.",
+            "warn",
+        )
     return _flash(f"/owner/clients/{client_id}", "Информация обновлена")
 
 
@@ -797,17 +825,58 @@ async def feedback_list(
 @router.get("/feedback/{feedback_id}", response_class=HTMLResponse)
 async def feedback_detail(request: Request, feedback_id: int, db: AsyncSession = Depends(get_session)):
     owner = await require_owner(request, db)
-    fb    = (await db.execute(select(Feedback).where(Feedback.id == feedback_id))).scalar_one_or_none()
+    fb    = (await db.execute(
+        select(Feedback)
+        .options(selectinload(Feedback.messages))
+        .where(Feedback.id == feedback_id)
+    )).scalar_one_or_none()
     if not fb:
         raise HTTPException(404)
 
-    # Отмечаем как прочитанное при открытии
     if fb.status == "new":
         fb.status = "read"
         await db.commit()
 
     ctx = await _ctx(request, owner, db, fb=fb)
     return templates.TemplateResponse("owner/feedback_detail.html", ctx)
+
+
+@router.post("/feedback/{feedback_id}/reply")
+async def feedback_reply(
+    request:     Request,
+    feedback_id: int,
+    message:     str = Form(...),
+    db: AsyncSession = Depends(get_session),
+):
+    owner = await require_owner(request, db)
+    fb = (await db.execute(select(Feedback).where(Feedback.id == feedback_id))).scalar_one_or_none()
+    if not fb:
+        return _flash("/owner/feedback", "Запись не найдена", "error")
+
+    if not message.strip():
+        return _flash(f"/owner/feedback/{feedback_id}", "Текст ответа не может быть пустым", "error")
+
+    db.add(FeedbackMessage(
+        feedback_id=fb.id,
+        sender_type="admin",
+        sender_id=owner.id,
+        sender_name=owner.email,
+        message=message.strip(),
+    ))
+    fb.status = "answered"
+    await db.commit()
+
+    if fb.contact_email:
+        from app.email import notify_feedback_reply_to_org
+        notify_feedback_reply_to_org(
+            to=fb.contact_email,
+            org_name=fb.org_name or "",
+            subject=fb.subject,
+            reply_text=message.strip(),
+            thread_url=f"/org/feedback/{feedback_id}",
+        )
+
+    return _flash(f"/owner/feedback/{feedback_id}", "Ответ отправлен")
 
 
 @router.post("/feedback/{feedback_id}/update")
@@ -932,8 +1001,8 @@ def _list_backups() -> list[dict]:
 async def backup_page(request: Request, db: AsyncSession = Depends(get_session)):
     owner = await require_owner(request, db)
     return templates.TemplateResponse(
-        "backup.html",
-        {"request": request, "admin": owner, "backups": _list_backups()},
+        "owner/backup.html",
+        await _ctx(request, owner, db, backups=_list_backups()),
     )
 
 
@@ -987,15 +1056,14 @@ async def backup_restore(filename: str, request: Request, db: AsyncSession = Dep
         stats = await restore_backup(engine, path.read_bytes())
     except Exception as exc:
         return templates.TemplateResponse(
-            "backup.html",
-            {"request": request, "admin": owner,
-             "backups": _list_backups(), "error": str(exc)},
+            "owner/backup.html",
+            await _ctx(request, owner, db, backups=_list_backups(), error=str(exc)),
             status_code=400,
         )
     return templates.TemplateResponse(
-        "backup.html",
-        {"request": request, "admin": owner,
-         "backups": _list_backups(), "restored": filename, "restore_stats": stats},
+        "owner/backup.html",
+        await _ctx(request, owner, db,
+                   backups=_list_backups(), restored=filename, restore_stats=stats),
     )
 
 

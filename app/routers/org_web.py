@@ -9,14 +9,17 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import log_action
 from app.db import get_session
-from app.models import Client, Feedback, License, LicenseAction
+from sqlalchemy.orm import selectinload
+
+from app.models import Client, Feedback, FeedbackMessage, License, LicenseAction, LicenseKey
 from app.password import validate_password
 from app.security import get_current_org, hash_password, verify_password
+from app.utils import generate_license_key
 
 router    = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -137,6 +140,82 @@ async def license_deactivate(
     return _flash("/org/dashboard", "Лицензия деактивирована. Повторная активация доступна на любом устройстве.")
 
 
+@router.post("/licenses/generate")
+async def org_license_generate(
+    request:     Request,
+    description: str = Form(""),
+    db: AsyncSession = Depends(get_session),
+):
+    org, redir = await _require_org(request, db)
+    if redir:
+        return redir
+
+    total = (await db.execute(
+        select(func.count(License.id)).where(License.client_id == org.id)
+    )).scalar_one()
+
+    if total >= org.max_keys:
+        return _flash("/org/dashboard", "Квота исчерпана — обратитесь к администратору", "error")
+
+    exp = None
+    if org.key_ttl_days:
+        exp = dt.datetime.utcnow() + dt.timedelta(days=org.key_ttl_days)
+
+    key = generate_license_key()
+    lic = License(
+        client_id=org.id,
+        version=1,
+        key=key,
+        expires_at=exp,
+        description=description.strip() or "автоматическая генерация",
+    )
+    db.add(lic)
+    await db.flush()
+    db.add(LicenseKey(license_id=lic.id, key=key, is_active=True))
+    db.add(LicenseAction(license_id=lic.id, action="issue"))
+    await log_action(
+        db=db,
+        actor_type="org",
+        action="issue",
+        actor_id=org.id,
+        actor_login=org.login,
+        entity_type="license",
+        entity_id=lic.id,
+        success=True,
+        request=request,
+    )
+    await db.commit()
+    return _flash("/org/dashboard", "Лицензия выпущена")
+
+
+@router.post("/licenses/{license_id}/edit")
+async def org_license_edit(
+    request:     Request,
+    license_id:  int,
+    description: str = Form(""),
+    db: AsyncSession = Depends(get_session),
+):
+    org, redir = await _require_org(request, db)
+    if redir:
+        return redir
+
+    lic = (await db.execute(
+        select(License).where(
+            License.id == license_id,
+            License.client_id == org.id,
+        )
+    )).scalar_one_or_none()
+
+    if not lic:
+        return _flash("/org/dashboard", "Лицензия не найдена", "error")
+
+    if description.strip():
+        lic.description = description.strip()
+        await db.commit()
+        return _flash("/org/dashboard", "Описание обновлено")
+    return _flash("/org/dashboard", "Описание не изменено", "warn")
+
+
 # ── профиль ───────────────────────────────────────────────────────────────────
 
 @router.get("/profile", response_class=HTMLResponse)
@@ -195,6 +274,7 @@ async def feedback_list(request: Request, db: AsyncSession = Depends(get_session
 
     items = (await db.execute(
         select(Feedback)
+        .options(selectinload(Feedback.messages))
         .where(Feedback.entity_type == "org", Feedback.entity_id == org.id)
         .order_by(desc(Feedback.created_at))
     )).scalars().all()
@@ -229,3 +309,81 @@ async def feedback_new(
     ))
     await db.commit()
     return _flash("/org/feedback", "Обращение отправлено. Мы ответим в ближайшее время.")
+
+
+@router.get("/feedback/{feedback_id}", response_class=HTMLResponse)
+async def feedback_detail(
+    request:     Request,
+    feedback_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    org, redir = await _require_org(request, db)
+    if redir:
+        return redir
+
+    fb = (await db.execute(
+        select(Feedback)
+        .options(selectinload(Feedback.messages))
+        .where(
+            Feedback.id == feedback_id,
+            Feedback.entity_type == "org",
+            Feedback.entity_id == org.id,
+        )
+    )).scalar_one_or_none()
+
+    if not fb:
+        return _flash("/org/feedback", "Обращение не найдено", "error")
+
+    ctx = _ctx(request, org, fb=fb)
+    return templates.TemplateResponse("org/feedback_detail.html", ctx)
+
+
+@router.post("/feedback/{feedback_id}/reply")
+async def feedback_reply(
+    request:     Request,
+    feedback_id: int,
+    message:     str = Form(...),
+    db: AsyncSession = Depends(get_session),
+):
+    org, redir = await _require_org(request, db)
+    if redir:
+        return redir
+
+    fb = (await db.execute(
+        select(Feedback).where(
+            Feedback.id == feedback_id,
+            Feedback.entity_type == "org",
+            Feedback.entity_id == org.id,
+        )
+    )).scalar_one_or_none()
+
+    if not fb:
+        return _flash("/org/feedback", "Обращение не найдено", "error")
+
+    if not message.strip():
+        return _flash(f"/org/feedback/{feedback_id}", "Текст ответа не может быть пустым", "error")
+
+    db.add(FeedbackMessage(
+        feedback_id=fb.id,
+        sender_type="org",
+        sender_id=org.id,
+        sender_name=org.org_name,
+        message=message.strip(),
+    ))
+    # Org replied → статус "read" (ждёт нового ответа admin)
+    if fb.status == "answered":
+        fb.status = "read"
+    await db.commit()
+
+    from app.config import smtp_config
+    from app.email import notify_feedback_reply_to_admin
+    if smtp_config.from_addr:
+        notify_feedback_reply_to_admin(
+            to=smtp_config.from_addr,
+            org_name=org.org_name,
+            subject=fb.subject,
+            reply_text=message.strip(),
+            admin_url=f"/owner/feedback/{feedback_id}",
+        )
+
+    return _flash(f"/org/feedback/{feedback_id}", "Ответ отправлен")

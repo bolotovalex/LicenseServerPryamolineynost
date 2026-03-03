@@ -72,12 +72,11 @@
           <th class="right">Ключей</th>
           <th class="right">Лимит</th>
           <th>Статус</th>
-          <th class="right">Открыть</th>
         </tr>
       </thead>
       <tbody>
       {% for c in clients %}
-        <tr>
+        <tr style="cursor:pointer" onclick="location.href='/owner/clients/{{ c.id }}'">
           <td style="color:#94a3b8;font-size:12px">{{ c.id }}</td>
           <td><strong>{{ c.org_name }}</strong></td>
           <td style="font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
@@ -91,12 +90,9 @@
               <span class="badge danger">отключён</span>
             {% endif %}
           </td>
-          <td class="right">
-            <a class="btn small ghost" href="/owner/clients/{{ c.id }}">Открыть</a>
-          </td>
         </tr>
       {% else %}
-        <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">Клиентов нет</td></tr>
+        <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">Клиентов нет</td></tr>
       {% endfor %}
       </tbody>
     </table>
