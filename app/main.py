@@ -2,20 +2,30 @@ import logging
 import time
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
 from app.db import engine, Base
 from app.logging_setup import setup_logging
-from app.routers import public_api, auth, owner_web
+from app.routers import public_api, auth, owner_web, org_web, feedback as feedback_router
 from app.models import License, LicenseKey
+from app.api_signing import APISignatureError, nonce_store
 
 # Логирование настраивается первым — до создания app
 setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="License Server")
+
+
+@app.exception_handler(APISignatureError)
+async def _signature_error_handler(request: Request, exc: APISignatureError) -> JSONResponse:
+    return JSONResponse(
+        status_code=401,
+        content={"status": "error", "reason": exc.reason, "code": exc.code},
+    )
 
 
 # ── middleware: логирование запросов ─────────────────────────────────────────
@@ -110,6 +120,7 @@ async def startup():
         from app.services.settings_db import sync_from_config
         await sync_from_config(s)
 
+    nonce_store.start_cleanup()
     logger.info("Приложение запущено.")
 
 
@@ -119,3 +130,5 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(public_api.router, prefix="/api")
 app.include_router(auth.router)
 app.include_router(owner_web.router, prefix="/owner")
+app.include_router(org_web.router, prefix="/org")
+app.include_router(feedback_router.router)
