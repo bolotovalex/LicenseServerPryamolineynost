@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
 from app.db import engine, Base
+from app.config import db_config
 from app.logging_setup import setup_logging
 from app.routers import public_api, auth, owner_web, org_web, feedback as feedback_router
 from app.models import License, LicenseKey
@@ -60,12 +61,87 @@ async def request_logging_middleware(request: Request, call_next):
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-async def _add_column_if_missing(conn, table: str, column: str, col_def: str) -> None:
-    """Добавляет колонку в таблицу только если её ещё нет (SQLite PRAGMA)."""
+async def _add_column_if_missing_sqlite(conn, table: str, column: str, col_def: str) -> None:
+    """Добавляет колонку только если её нет (SQLite PRAGMA)."""
     rows = (await conn.execute(text(f"PRAGMA table_info({table})"))).fetchall()
     existing = {row[1] for row in rows}
     if column not in existing:
         await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}"))
+
+
+async def _add_column_if_missing_pg(conn, table: str, column: str, col_def: str) -> None:
+    """Добавляет колонку через IF NOT EXISTS (PostgreSQL / MariaDB 10.3+)."""
+    try:
+        await conn.execute(text(
+            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_def}"
+        ))
+    except Exception:
+        pass  # колонка уже существует
+
+
+async def _run_migrations(conn) -> None:
+    """Запускает schema-миграции для существующих БД."""
+    db_type = db_config.db_type
+
+    if db_type == "sqlite":
+        add_col = _add_column_if_missing_sqlite
+    else:
+        add_col = _add_column_if_missing_pg
+
+    migrations = [
+        # clients: логотип
+        ("clients", "logo_data",       "BLOB"),
+        ("clients", "logo_mime",       "VARCHAR(50)"),
+        # clients: новые поля
+        ("clients", "login",           "VARCHAR(64)"),
+        ("clients", "password_hash",   "VARCHAR(255)"),
+        ("clients", "is_active",       "BOOLEAN DEFAULT 1"),
+        ("clients", "max_keys",        "INTEGER DEFAULT 5"),
+        ("clients", "key_ttl_days",    "INTEGER"),
+        ("clients", "contact_email",   "VARCHAR(255)"),
+        ("clients", "created_by",      "INTEGER REFERENCES admin_users(id)"),
+        ("clients", "failed_attempts", "INTEGER DEFAULT 0"),
+        ("clients", "locked_until",    "DATETIME"),
+        ("clients", "last_login_at",   "DATETIME"),
+        ("clients", "deleted_at",      "DATETIME"),
+        # admin_users: новые поля
+        ("admin_users", "role",            "VARCHAR(32) DEFAULT 'admin'"),
+        ("admin_users", "created_by",      "INTEGER REFERENCES admin_users(id)"),
+        ("admin_users", "created_at",      "DATETIME"),
+        ("admin_users", "last_login_at",   "DATETIME"),
+        ("admin_users", "failed_attempts", "INTEGER DEFAULT 0"),
+        ("admin_users", "locked_until",    "DATETIME"),
+        # licenses: явный статус и поля устройства
+        ("licenses", "status",         "VARCHAR(20) DEFAULT 'not_activated'"),
+        ("licenses", "device_name",    "VARCHAR(255)"),
+        ("licenses", "device_comment", "TEXT"),
+        # license_actions: расширенный аудит
+        ("license_actions", "desc",   "TEXT"),
+        ("license_actions", "actor",  "VARCHAR(255)"),
+        ("license_actions", "ip",     "VARCHAR(45)"),
+    ]
+    for table, column, col_def in migrations:
+        await add_col(conn, table, column, col_def)
+
+
+async def _backfill_license_status(session: AsyncSession) -> None:
+    """Заполняет License.status для существующих записей с status IS NULL или пустым."""
+    import datetime as dt
+    licenses = (await session.execute(select(License))).scalars().all()
+    now = dt.datetime.utcnow()
+    need_commit = False
+    for lic in licenses:
+        if lic.status and lic.status != "not_activated":
+            continue
+        if lic.is_blocked:
+            lic.status = "blocked"
+        elif lic.activated_at:
+            lic.status = "activated"
+        else:
+            lic.status = "not_activated"
+        need_commit = True
+    if need_commit:
+        await session.commit()
 
 
 # ── startup ───────────────────────────────────────────────────────────────────
@@ -74,35 +150,10 @@ async def _add_column_if_missing(conn, table: str, column: str, col_def: str) ->
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _run_migrations(conn)
 
-        migrations = [
-            # clients: логотип
-            ("clients", "logo_data",       "BLOB"),
-            ("clients", "logo_mime",       "VARCHAR(50)"),
-            # clients: новые поля
-            ("clients", "login",           "VARCHAR(64)"),
-            ("clients", "password_hash",   "VARCHAR(255)"),
-            ("clients", "is_active",       "BOOLEAN DEFAULT 1"),
-            ("clients", "max_keys",        "INTEGER DEFAULT 5"),
-            ("clients", "key_ttl_days",    "INTEGER"),
-            ("clients", "contact_email",   "VARCHAR(255)"),
-            ("clients", "created_by",      "INTEGER REFERENCES admin_users(id)"),
-            ("clients", "failed_attempts", "INTEGER DEFAULT 0"),
-            ("clients", "locked_until",    "DATETIME"),
-            ("clients", "last_login_at",   "DATETIME"),
-            # admin_users: новые поля
-            ("admin_users", "role",            "VARCHAR(32) DEFAULT 'admin'"),
-            ("admin_users", "created_by",      "INTEGER REFERENCES admin_users(id)"),
-            ("admin_users", "created_at",      "DATETIME"),
-            ("admin_users", "last_login_at",   "DATETIME"),
-            ("admin_users", "failed_attempts", "INTEGER DEFAULT 0"),
-            ("admin_users", "locked_until",    "DATETIME"),
-        ]
-        for table, column, col_def in migrations:
-            await _add_column_if_missing(conn, table, column, col_def)
-
-    # backfill истории ключей
     async with AsyncSession(engine) as s:
+        # backfill истории ключей (LicenseKey)
         licenses = (await s.execute(select(License))).scalars().all()
         need_commit = False
         for lic in licenses:
@@ -117,11 +168,14 @@ async def startup():
         if need_commit:
             await s.commit()
 
+        # backfill License.status
+        await _backfill_license_status(s)
+
         from app.services.settings_db import sync_from_config
         await sync_from_config(s)
 
     nonce_store.start_cleanup()
-    logger.info("Приложение запущено.")
+    logger.info("Приложение запущено (db_type=%s).", db_config.db_type)
 
 
 # ── routers & static ─────────────────────────────────────────────────────────

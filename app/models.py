@@ -36,7 +36,18 @@ class Client(Base):
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # Soft-delete: при удалении org ставится метка, данные не уничтожаются
+    deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     licenses: Mapped[list["License"]] = relationship(back_populates="client")
+
+
+# Статусы лицензии (явное поле в БД):
+# not_activated — новая, ни разу не активировалась
+# activated     — активна на устройстве
+# released      — была активирована, затем деактивирована (свободна)
+# blocked       — заблокирована владельцем
+# (expired — вычисляется на лету по expires_at, не хранится)
+LICENSE_STATUSES = ("not_activated", "activated", "released", "blocked")
 
 
 class License(Base):
@@ -46,13 +57,17 @@ class License(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     issued_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    # Явный статус; expired вычисляется по expires_at
+    status: Mapped[str] = mapped_column(String(20), default="not_activated")
     is_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     block_reason: Mapped[str | None] = mapped_column(Text)
     activated_at: Mapped[dt.datetime | None] = mapped_column(DateTime)
     device_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    device_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime)
     activation_payload: Mapped[str | None] = mapped_column(Text)
-    description: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(String(255), default="автоматическая генерация")
     client: Mapped["Client"] = relationship(back_populates="licenses")
     keys: Mapped[list["LicenseKey"]] = relationship(
         "LicenseKey",
@@ -60,6 +75,20 @@ class License(Base):
         cascade="all, delete-orphan",
         order_by="desc(LicenseKey.issued_at)",
     )
+    actions: Mapped[list["LicenseAction"]] = relationship(
+        "LicenseAction",
+        back_populates="license",
+        cascade="all, delete-orphan",
+    )
+
+    def computed_status(self, now: dt.datetime | None = None) -> str:
+        """Вычисляет итоговый статус с учётом expires_at."""
+        now = now or dt.datetime.utcnow()
+        if self.is_blocked:
+            return "blocked"
+        if self.expires_at and now > self.expires_at:
+            return "expired"
+        return self.status
 
 
 class LicenseKey(Base):
@@ -80,7 +109,11 @@ class LicenseAction(Base):
     license_id: Mapped[int] = mapped_column(ForeignKey("licenses.id"), index=True)
     action: Mapped[str] = mapped_column(String(32))
     reason: Mapped[str | None] = mapped_column(Text)
+    desc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    license: Mapped["License"] = relationship(back_populates="actions")
 
 
 class AppSetting(Base):
@@ -148,3 +181,24 @@ class Feedback(Base):
     admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    messages: Mapped[list["FeedbackMessage"]] = relationship(
+        "FeedbackMessage",
+        back_populates="feedback",
+        order_by="FeedbackMessage.created_at",
+        cascade="all, delete-orphan",
+    )
+
+
+class FeedbackMessage(Base):
+    """Сообщения диалога обратной связи (owner ↔ org)."""
+    __tablename__ = "feedback_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    feedback_id: Mapped[int] = mapped_column(ForeignKey("feedback.id"), index=True)
+    # sender_type: "admin" (ответ owner), "org" (ответ организации), "system" (исходное сообщение)
+    sender_type: Mapped[str] = mapped_column(String(32))
+    sender_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sender_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    email_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    feedback: Mapped["Feedback"] = relationship(back_populates="messages")
