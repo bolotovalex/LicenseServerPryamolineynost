@@ -98,6 +98,12 @@ class _DbConfig:
         return os.environ.get("DATABASE_URL") or _db_cfg.get("database", "url")
 
     @property
+    def db_type(self) -> str:
+        """Нормализованный тип БД: sqlite | postgres | mariadb."""
+        raw = (os.environ.get("DB_TYPE") or _db_cfg.get("database", "db_type", fallback="sqlite")).lower()
+        return "mariadb" if raw == "mysql" else raw
+
+    @property
     def echo_sql(self) -> bool:
         return _db_cfg.getboolean("database", "echo_sql", fallback=False)
 
