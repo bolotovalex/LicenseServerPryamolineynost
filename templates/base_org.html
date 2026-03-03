@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{% block title %}Личный кабинет{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css"/>
+  <style>
+    /* ── org portal overrides ─────────────────────────────── */
+    body { background:#f0f4f8 }
+
+    .org-nav {
+      background:#fff; border-bottom:1px solid #e2e8f0;
+      padding:0 28px; display:flex; align-items:center; gap:0;
+      height:52px; position:sticky; top:0; z-index:100;
+      box-shadow:0 1px 3px rgba(0,0,0,.06);
+    }
+
+    .org-nav .brand {
+      display:flex; align-items:center; gap:10px;
+      font-weight:700; font-size:15px; color:#1e293b;
+      margin-right:28px; white-space:nowrap; text-decoration:none;
+    }
+    .org-nav .brand .logo-img {
+      width:32px; height:32px; border-radius:6px;
+      object-fit:contain; border:1px solid #e2e8f0;
+    }
+    .org-nav .brand .logo-placeholder {
+      width:32px; height:32px; border-radius:6px;
+      background:#1f64e2; color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-size:15px; font-weight:700;
+    }
+
+    .org-nav a.nav-link {
+      color:#64748b; text-decoration:none; font-size:13px; font-weight:500;
+      padding:0 14px; height:52px; display:inline-flex; align-items:center;
+      border-bottom:2px solid transparent;
+      transition:color .15s, border-color .15s;
+    }
+    .org-nav a.nav-link:hover  { color:#1e293b }
+    .org-nav a.nav-link.active { color:#1f64e2; border-bottom-color:#1f64e2 }
+
+    .org-nav .spacer { flex:1 }
+    .org-nav .nav-user {
+      font-size:12px; color:#94a3b8; margin-right:16px;
+    }
+    .org-nav a.nav-logout {
+      font-size:13px; color:#ef4444; text-decoration:none; font-weight:500;
+    }
+    .org-nav a.nav-logout:hover { color:#b91c1c }
+
+    .org-main { max-width:1100px; margin:0 auto; padding:32px 24px }
+
+    /* ── flash ────────────────────────────────────────────── */
+    .flash {
+      position:fixed; top:16px; right:16px; z-index:9999;
+      border-radius:10px; padding:12px 16px; font-size:13px;
+      line-height:1.5; max-width:480px;
+      box-shadow:0 6px 20px rgba(0,0,0,.12);
+      display:flex; align-items:flex-start; gap:10px;
+    }
+    .flash.success { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7 }
+    .flash.error   { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5 }
+    .flash.warn    { background:#fef3c7; color:#92400e; border:1px solid #fcd34d }
+    .flash-close {
+      margin-left:auto; cursor:pointer; color:inherit;
+      opacity:.5; font-size:16px; line-height:1;
+      background:none; border:none; padding:0 2px;
+    }
+
+    /* ── cards ────────────────────────────────────────────── */
+    .org-card {
+      background:#fff; border:1px solid #e2e8f0;
+      border-radius:14px; padding:20px; margin-bottom:20px;
+    }
+    .org-card-title {
+      font-size:13px; font-weight:600; color:#64748b; text-transform:uppercase;
+      letter-spacing:.04em; margin-bottom:14px;
+    }
+
+    /* ── stat chips ───────────────────────────────────────── */
+    .stat-bar {
+      display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;
+    }
+    .stat-chip {
+      background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+      padding:14px 20px; display:flex; flex-direction:column; gap:4px;
+      min-width:130px;
+    }
+    .stat-chip .val { font-size:28px; font-weight:700; line-height:1 }
+    .stat-chip .lbl { font-size:12px; color:#64748b }
+    .stat-chip.green  .val { color:#059669 }
+    .stat-chip.blue   .val { color:#1f64e2 }
+    .stat-chip.gray   .val { color:#64748b }
+    .stat-chip.orange .val { color:#d97706 }
+
+    /* ── password strength ────────────────────────────────── */
+    .pw-strength { height:4px; border-radius:2px; margin-top:4px; transition:width .3s, background .3s }
+
+    /* ── badge extras ─────────────────────────────────────── */
+    .badge.gray { background:#f1f5f9; color:#64748b; border-color:#e2e8f0 }
+  </style>
+</head>
+<body>
+
+<nav class="org-nav">
+  <!-- Логотип + название организации -->
+  <a href="/org/dashboard" class="brand">
+    {% if org.logo_data %}
+      <img src="/owner/clients/{{ org.id }}/logo" class="logo-img" alt="logo"/>
+    {% else %}
+      <span class="logo-placeholder">{{ org.org_name[0] | upper }}</span>
+    {% endif %}
+    {{ org.org_name }}
+  </a>
+
+  {% set path = request.url.path %}
+  <a href="/org/dashboard" class="nav-link {% if path == '/org/dashboard' %}active{% endif %}">
+    Лицензии
+  </a>
+  <a href="/org/feedback" class="nav-link {% if path.startswith('/org/feedback') %}active{% endif %}">
+    Обратная связь
+  </a>
+  <a href="/org/profile" class="nav-link {% if path == '/org/profile' %}active{% endif %}">
+    Профиль
+  </a>
+
+  <span class="spacer"></span>
+  <span class="nav-user">{{ org.login or org.org_name }}</span>
+  <a href="/logout" class="nav-logout">Выход</a>
+</nav>
+
+{# ── Flash ── #}
+{% set _msg  = request.query_params.get('msg', '') %}
+{% set _type = request.query_params.get('msg_type', 'success') %}
+{% if _msg %}
+<div id="flash-banner" class="flash {{ _type }}">
+  <span>{{ _msg }}</span>
+  <button class="flash-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+<main class="org-main">
+  {% block content %}{% endblock %}
+</main>
+
+{% if _msg %}
+<script>
+(function(){
+  var el = document.getElementById('flash-banner');
+  if (!el) return;
+  setTimeout(function(){
+    el.style.transition = 'opacity .5s';
+    el.style.opacity = '0';
+    setTimeout(function(){ el.remove(); }, 500);
+  }, 5000);
+})();
+</script>
+{% endif %}
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

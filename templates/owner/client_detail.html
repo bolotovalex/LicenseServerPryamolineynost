@@ -1,0 +1,488 @@
+{% extends "base_owner.html" %}
+{% block title %}{{ client.org_name }} — License Server{% endblock %}
+
+{% block content %}
+<!-- Заголовок -->
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="/owner/clients" style="color:#64748b;font-size:13px">← Клиенты</a>
+  <span style="color:#cbd5e1">/</span>
+  <h1 style="margin:0;font-size:22px">{{ client.org_name }}</h1>
+  {% if client.is_active %}
+    <span class="badge success">активен</span>
+  {% else %}
+    <span class="badge danger">отключён</span>
+  {% endif %}
+</div>
+
+<!-- ═══════════════ БЛОК 1: ИНФОРМАЦИЯ ═══════════════ -->
+<div class="section">
+  <div class="section-title">Информация о клиенте</div>
+
+  <div style="display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:start">
+
+    <!-- Логотип -->
+    <div style="text-align:center">
+      {% if client.logo_data %}
+        <img src="/owner/clients/{{ client.id }}/logo" alt="Логотип"
+             style="max-width:120px;max-height:120px;border-radius:10px;border:1px solid #e2e8f0;object-fit:contain;margin-bottom:8px"/>
+      {% else %}
+        <div style="width:120px;height:120px;border:2px dashed #e2e8f0;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:11px;margin-bottom:8px">
+          Нет логотипа
+        </div>
+      {% endif %}
+      <form method="post" action="/owner/clients/{{ client.id }}/upload-logo"
+            enctype="multipart/form-data">
+        <label style="cursor:pointer;font-size:11px;color:#1f64e2;text-decoration:underline">
+          {{ "Заменить" if client.logo_data else "Загрузить" }}
+          <input type="file" name="logo" accept=".jpg,.jpeg,.png,.gif,.webp"
+                 style="display:none" onchange="this.form.submit()"/>
+        </label>
+      </form>
+      {% if client.logo_data %}
+        <form method="post" action="/owner/clients/{{ client.id }}/delete-logo" style="margin-top:4px">
+          <button class="btn small ghost" style="font-size:11px;color:#ef4444;padding:3px 8px">Удалить</button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Форма редактирования -->
+    <div>
+      <form method="post" action="/owner/clients/{{ client.id }}/update-info">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label>Название организации *</label>
+            <input name="org_name" class="input" value="{{ client.org_name }}" required/>
+          </div>
+          <div>
+            <label>Контактный email</label>
+            <input name="contact_email" class="input" type="email" value="{{ client.contact_email or '' }}"/>
+          </div>
+          <div>
+            <label>Максимум лицензий</label>
+            <input name="max_keys" class="input" type="number" min="1" value="{{ client.max_keys }}"/>
+          </div>
+          <div>
+            <label>Срок ключей (дней, пусто = бессрочно)</label>
+            <input name="key_ttl_days" class="input" type="number" min="1"
+                   value="{{ client.key_ttl_days or '' }}"/>
+          </div>
+          <div style="grid-column:1/-1">
+            <label>Примечания</label>
+            <textarea name="notes" class="textarea" rows="2">{{ client.notes or '' }}</textarea>
+          </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn small">Сохранить изменения</button>
+
+          <!-- Нередактируемые поля -->
+          <span style="font-size:12px;color:#94a3b8;margin-left:8px">
+            Логин: <code>{{ client.login or '—' }}</code>
+            &nbsp;·&nbsp;
+            Создан: {{ client.created_at.strftime('%Y-%m-%d') if client.created_at else '—' }}
+            {% if creator %}
+              &nbsp;·&nbsp; {{ creator.email }}
+            {% endif %}
+          </span>
+        </div>
+      </form>
+
+      <!-- Пароль и статус -->
+      <div style="display:flex;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
+        <button type="button" class="btn small amber" onclick="openResetPwModal()">Сбросить пароль</button>
+        <form method="post" action="/owner/clients/{{ client.id }}/toggle-active">
+          {% if client.is_active %}
+            <button class="btn small ghost" style="color:#ef4444;border-color:#fca5a5">Отключить</button>
+          {% else %}
+            <button class="btn small green">Включить</button>
+          {% endif %}
+        </form>
+        <form method="post" action="/owner/clients/{{ client.id }}/delete"
+              onsubmit="return confirm('Удалить клиента «{{ client.org_name }}» и все его лицензии? Это необратимо.')">
+          <button class="btn small red">Удалить клиента</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════ БЛОК 2: ГЕНЕРАЦИЯ КЛЮЧЕЙ ═══════════════ -->
+<div class="section">
+  <div class="section-title">
+    Генерация лицензий
+    <span style="font-weight:400;color:#94a3b8;font-size:12px">
+      — выдано {{ total_keys }} из {{ client.max_keys }}
+    </span>
+  </div>
+
+  {% if max_allowed <= 0 %}
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px">
+      &#9888; Квота исчерпана ({{ total_keys }}/{{ client.max_keys }}). Увеличьте лимит в информации выше.
+    </div>
+  {% else %}
+    <form method="post" action="/owner/clients/{{ client.id }}/generate">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
+        <div>
+          <label>Описание *</label>
+          <input name="description" class="input" placeholder="Назначение лицензии" required/>
+        </div>
+        <div>
+          <label>Количество (макс. {{ max_allowed }})</label>
+          <input name="count" class="input" type="number" value="1" min="1" max="{{ max_allowed }}" required/>
+        </div>
+        <div>
+          <label>Срок действия {% if client.key_ttl_days %}(+{{ client.key_ttl_days }} дн.){% endif %}</label>
+          <input name="expires_at" class="input" type="date" value="{{ default_expires }}"/>
+        </div>
+        <div>
+          <button class="btn">Выпустить</button>
+        </div>
+      </div>
+    </form>
+  {% endif %}
+</div>
+
+
+<!-- ═══════════════ БЛОК 3: ТАБЛИЦА КЛЮЧЕЙ ═══════════════ -->
+<div class="section" style="padding:0;overflow:hidden">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0">
+    <span class="section-title" style="margin:0;border:none;padding:0">Лицензии</span>
+  </div>
+
+  {% if not licenses %}
+    <div style="padding:32px;text-align:center;color:#94a3b8">Лицензий нет</div>
+  {% else %}
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Ключ</th>
+          <th>ver</th>
+          <th>Статус</th>
+          <th>Устройство</th>
+          <th>Выдан</th>
+          <th>Активирован</th>
+          <th>До</th>
+          <th>Описание</th>
+          <th class="right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for lic in licenses %}
+        {% set is_expired = lic.expires_at and lic.expires_at < now %}
+        <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
+          <td style="color:#94a3b8;font-size:11px">{{ lic.id }}</td>
+
+          <!-- Ключ -->
+          <td>
+            <code style="font-size:11px;color:#334155">{{ lic.key }}</code>
+            <button class="btn small ghost" style="padding:2px 6px;font-size:11px;margin-left:4px"
+                    onclick="copyKey('{{ lic.key }}', this)" title="Копировать ключ">&#128203;</button>
+          </td>
+
+          <td style="color:#94a3b8;font-size:11px">{{ lic.version }}</td>
+
+          <!-- Статус -->
+          <td>
+            {% if lic.is_blocked %}
+              <span class="badge danger" title="{{ lic.block_reason or '' }}">blocked</span>
+            {% elif is_expired %}
+              <span class="badge gray">expired</span>
+            {% elif lic.activated_at %}
+              <span class="badge success">activated</span>
+            {% else %}
+              <span class="badge new">new</span>
+            {% endif %}
+          </td>
+
+          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}" style="font-size:11px">
+            {{ lic.device_id or '—' }}
+          </td>
+          <td style="white-space:nowrap;font-size:12px"
+              title="{{ lic.issued_at.isoformat(sep=' ', timespec='seconds') if lic.issued_at else '' }}">
+            {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
+          </td>
+          <td style="white-space:nowrap;font-size:12px"
+              title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') if lic.activated_at else '' }}">
+            {{ lic.activated_at.strftime('%Y-%m-%d') if lic.activated_at else '—' }}
+          </td>
+          <td style="white-space:nowrap;font-size:12px"
+              title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
+            {% if lic.expires_at %}
+              <span {% if is_expired %}style="color:#ef4444"{% endif %}>
+                {{ lic.expires_at.strftime('%Y-%m-%d') }}
+              </span>
+            {% else %}
+              <span style="color:#94a3b8">бессрочно</span>
+            {% endif %}
+          </td>
+          <td class="ellipsis w-280" title="{{ lic.description or '' }}" style="font-size:12px">
+            {{ lic.description or '—' }}
+          </td>
+
+          <!-- Действия -->
+          <td class="right" style="white-space:nowrap">
+            <!-- История ключей -->
+            <button type="button" class="btn small ghost"
+                    data-open-keys="{{ (keys_payloads or {})[lic.id] | tojson }}"
+                    title="История ключей">&#128214;</button>
+
+            <!-- QR-код -->
+            <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode"
+               target="_blank" title="QR-код">QR</a>
+
+            <!-- Dropdown действий -->
+            <details class="row-actions">
+              <summary>&#8942;</summary>
+              <div class="menu" style="min-width:320px">
+
+                <!-- Сброс -->
+                <form method="post" action="/owner/licenses/{{ lic.id }}/reset">
+                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">СБРОС</div>
+                  <div class="line">
+                    <input class="input" name="reason" placeholder="Причина *" required style="flex:1"/>
+                    <input class="input" name="expires_at" type="date" style="width:140px"/>
+                    <button class="btn small amber">Сбросить</button>
+                  </div>
+                </form>
+
+                <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
+
+                <!-- Блокировка/разблокировка -->
+                {% if lic.is_blocked %}
+                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">РАЗБЛОКИРОВКА</div>
+                  <div class="line">
+                    <form method="post" action="/owner/licenses/{{ lic.id }}/unblock">
+                      <button class="btn small green">Разблокировать</button>
+                    </form>
+                  </div>
+                {% else %}
+                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">БЛОКИРОВКА</div>
+                  <form method="post" action="/owner/licenses/{{ lic.id }}/block">
+                    <div class="line">
+                      <input class="input" name="reason" placeholder="Причина блокировки *" required style="flex:1"/>
+                      <button class="btn small red">Заблокировать</button>
+                    </div>
+                  </form>
+                {% endif %}
+              </div>
+            </details>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ═══════════════ БЛОК 4: ЖУРНАЛ ДЕЙСТВИЙ ═══════════════ -->
+<div class="section" style="padding:0;overflow:hidden">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0">
+    <span class="section-title" style="margin:0;border:none;padding:0">Журнал действий</span>
+  </div>
+  {% if not log_entries %}
+    <div style="padding:24px;text-align:center;color:#94a3b8">Записей нет</div>
+  {% else %}
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Действие</th>
+          <th>Описание</th>
+          <th>Причина / Актор</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in log_entries %}
+        <tr>
+          <td style="white-space:nowrap;font-size:12px;color:#64748b">
+            {{ e.at.strftime('%Y-%m-%d %H:%M') }}
+          </td>
+          <td>
+            {% set act = e.action %}
+            {% if act == 'issue' %}
+              <span class="badge new">issue</span>
+            {% elif act == 'reset' %}
+              <span class="badge yellow">reset</span>
+            {% elif act == 'block' %}
+              <span class="badge danger">block</span>
+            {% elif act == 'unblock' %}
+              <span class="badge success">unblock</span>
+            {% elif act == 'activate' %}
+              <span class="badge gray">activate</span>
+            {% elif act == 'transfer' %}
+              <span class="badge purple">transfer</span>
+            {% elif act == 'deactivate' %}
+              <span class="badge orange">deactivate</span>
+            {% else %}
+              <span class="badge">{{ act }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:#374151">{{ e.desc or '—' }}</td>
+          <td style="font-size:12px;color:#64748b">
+            {{ e.reason or e.actor or '—' }}
+            {% if e.ip %}<span style="color:#94a3b8">&nbsp;{{ e.ip }}</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ═══════════════ МОДАЛКА СБРОСА ПАРОЛЯ ═══════════════ -->
+<div id="resetPwModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeResetPwModal()"></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              padding:24px;width:420px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <strong style="font-size:15px">Сброс пароля клиента</strong>
+      <button type="button" onclick="closeResetPwModal()"
+              style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">&times;</button>
+    </div>
+    <form method="post" action="/owner/clients/{{ client.id }}/reset-password">
+      <div style="margin-bottom:6px">
+        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px">Новый пароль</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="resetPwInput" name="new_password" type="password" class="input"
+                 style="flex:1;font-family:monospace;letter-spacing:.05em" autocomplete="new-password" required/>
+          <button type="button" class="btn small ghost" onclick="toggleResetPwVis(this)"
+                  title="Показать / скрыть" style="flex-shrink:0">&#128065;</button>
+          <button type="button" class="btn small ghost" onclick="copyResetPw(this)"
+                  title="Копировать в буфер" style="flex-shrink:0">&#128203;</button>
+        </div>
+        <div id="resetPwBar" style="height:3px;border-radius:2px;margin-top:5px;
+             background:#e2e8f0;transition:width .25s,background .25s;width:0"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px">
+        <button type="button" class="btn small ghost" onclick="genResetPw()">&#9881; Сгенерировать</button>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn small ghost" onclick="closeResetPwModal()">Отмена</button>
+          <button type="submit" class="btn small amber">Сбросить пароль</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ═══════════════ МОДАЛКА ИСТОРИИ КЛЮЧЕЙ ═══════════════ -->
+<div id="keysModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" data-close></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              min-width:500px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+      <strong>История ключей</strong>
+      <button data-close style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+    </div>
+    <div id="keysList" style="padding:16px;max-height:60vh;overflow-y:auto"></div>
+    <div style="padding:12px 18px;border-top:1px solid #e2e8f0;text-align:right">
+      <button class="btn small ghost" data-close>Закрыть</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Модалка сброса пароля ──
+function openResetPwModal() {
+  document.getElementById('resetPwModal').style.display = 'grid';
+  genResetPw();
+}
+function closeResetPwModal() {
+  document.getElementById('resetPwModal').style.display = 'none';
+}
+function genResetPw() {
+  fetch('/owner/internal/generate-password')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var inp = document.getElementById('resetPwInput');
+      inp.value = d.password;
+      inp.type = 'text';
+      updateResetPwBar(d.password);
+    });
+}
+function toggleResetPwVis(btn) {
+  var inp = document.getElementById('resetPwInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+function copyResetPw(btn) {
+  var val = document.getElementById('resetPwInput').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(function(){
+    var orig = btn.innerHTML;
+    btn.innerHTML = '&#10003;';
+    setTimeout(function(){ btn.innerHTML = orig; }, 1500);
+  });
+}
+function updateResetPwBar(pw) {
+  var bar = document.getElementById('resetPwBar');
+  var score = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/, /.{10,}/]
+    .reduce(function(s, r){ return s + (r.test(pw) ? 1 : 0); }, 0);
+  var colors = ['#ef4444','#f97316','#eab308','#3b82f6','#22c55e'];
+  bar.style.width = (score * 20) + '%';
+  bar.style.background = pw.length ? colors[Math.min(score - 1, 4)] : '#e2e8f0';
+}
+document.getElementById('resetPwInput').addEventListener('input', function(){
+  updateResetPwBar(this.value);
+});
+
+// ── Копировать ключ ──
+function copyKey(key, btn) {
+  navigator.clipboard.writeText(key).then(function() {
+    var orig = btn.innerHTML;
+    btn.innerHTML = '&#10003;';
+    setTimeout(function() { btn.innerHTML = orig; }, 1500);
+  });
+}
+
+// ── Модалка истории ──
+(function(){
+  var modal = document.getElementById('keysModal');
+  var list  = document.getElementById('keysList');
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-open-keys]');
+    if (!btn) return;
+    var data = JSON.parse(btn.getAttribute('data-open-keys') || '[]');
+    list.innerHTML = data.length ? data.map(function(item) {
+      var badge = item.active
+        ? '<span class="badge success">действует</span>'
+        : '<span class="badge gray">деактивирован</span>';
+      var deact = item.deactivated_at
+        ? '<span style="font-size:11px;color:#94a3b8">до&nbsp;' + item.deactivated_at.slice(0,10) + '</span>'
+        : '';
+      var reason = item.reason
+        ? '<span style="font-size:11px;color:#ef4444">' + item.reason + '</span>'
+        : '';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed #e2e8f0;gap:8px">'
+        + '<code style="font-size:12px;color:#334155">' + item.key + '</code>'
+        + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
+        + badge + deact + reason
+        + '<button class="btn small ghost" style="font-size:11px;padding:2px 8px" onclick="navigator.clipboard.writeText(\'' + item.key + '\').then(function(){ this.textContent=\'ok\' }.bind(this))">Копировать</button>'
+        + '</div></div>';
+    }).join('') : '<div style="color:#94a3b8;text-align:center;padding:12px">Ключей нет</div>';
+    modal.style.display = 'grid';
+  });
+
+  modal.addEventListener('click', function(e) {
+    if (e.target.hasAttribute('data-close') || e.target.closest('[data-close]')) {
+      modal.style.display = 'none';
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    modal.style.display = 'none';
+    closeResetPwModal();
+  });
+})();
+</script>
+{% endblock %}

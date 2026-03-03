@@ -1,0 +1,126 @@
+{% extends "base_org.html" %}
+{% block title %}Профиль — {{ org.org_name }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 24px;font-size:22px">Профиль</h1>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;max-width:900px">
+
+  <!-- Информация об организации -->
+  <div class="org-card">
+    <div class="org-card-title">Организация</div>
+    <table style="width:100%;font-size:14px;border-collapse:collapse">
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:10px 0;color:#64748b;width:130px">Название</td>
+        <td style="padding:10px 0"><strong>{{ org.org_name }}</strong></td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:10px 0;color:#64748b">Логин</td>
+        <td style="padding:10px 0;font-family:monospace;font-size:13px">{{ org.login or '—' }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:10px 0;color:#64748b">Email</td>
+        <td style="padding:10px 0;font-size:13px">{{ org.contact_email or '—' }}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:10px 0;color:#64748b">Лимит ключей</td>
+        <td style="padding:10px 0">{{ org.max_keys }}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 0;color:#64748b">Последний вход</td>
+        <td style="padding:10px 0;font-size:13px">
+          {{ org.last_login_at.strftime('%Y-%m-%d %H:%M') if org.last_login_at else '—' }}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Смена пароля -->
+  <div class="org-card">
+    <div class="org-card-title">Смена пароля</div>
+    <form method="post" action="/org/profile/change-password">
+      <div style="display:flex;flex-direction:column;gap:14px">
+
+        <div>
+          <label>Текущий пароль *</label>
+          <input name="current_password" class="input" type="password"
+                 autocomplete="current-password" required/>
+        </div>
+
+        <div>
+          <label>Новый пароль *</label>
+          <input id="new-pw" name="new_password" class="input" type="password"
+                 autocomplete="new-password" required
+                 oninput="updateStrength(this.value)"/>
+          <!-- Индикатор сложности -->
+          <div id="pw-bar" class="pw-strength" style="width:0;background:#e2e8f0;margin-top:6px"></div>
+          <div id="pw-label" style="font-size:11px;color:#94a3b8;margin-top:3px;height:14px"></div>
+        </div>
+
+        <div>
+          <label>Подтверждение нового пароля *</label>
+          <input id="confirm-pw" name="confirm_password" class="input" type="password"
+                 autocomplete="new-password" required
+                 oninput="checkMatch()"/>
+          <div id="match-hint" style="font-size:11px;margin-top:3px;height:14px"></div>
+        </div>
+
+        <div style="padding-top:4px">
+          <button class="btn">Сменить пароль</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var LABELS = ['Очень слабый', 'Слабый', 'Средний', 'Хороший', 'Надёжный'];
+var COLORS = ['#ef4444', '#f59e0b', '#f59e0b', '#10b981', '#10b981'];
+
+function calcScore(pw) {
+  var score = 0;
+  if (pw.length >= 8)            score++;
+  if (pw.length >= 12)           score++;
+  if (/[A-Z]/.test(pw))         score++;
+  if (/[0-9]/.test(pw))         score++;
+  if (/[^A-Za-z0-9]/.test(pw))  score++;
+  return score;
+}
+
+function updateStrength(pw) {
+  var bar   = document.getElementById('pw-bar');
+  var label = document.getElementById('pw-label');
+  if (!pw.length) {
+    bar.style.width = '0';
+    bar.style.background = '#e2e8f0';
+    label.textContent = '';
+    checkMatch();
+    return;
+  }
+  var score = calcScore(pw);
+  var idx   = Math.min(score - 1, 4);
+  bar.style.width      = (score * 20) + '%';
+  bar.style.background = COLORS[Math.max(idx, 0)];
+  label.textContent    = LABELS[Math.max(idx, 0)];
+  label.style.color    = COLORS[Math.max(idx, 0)];
+  checkMatch();
+}
+
+function checkMatch() {
+  var pw1  = document.getElementById('new-pw').value;
+  var pw2  = document.getElementById('confirm-pw').value;
+  var hint = document.getElementById('match-hint');
+  if (!pw2) { hint.textContent = ''; return; }
+  if (pw1 === pw2) {
+    hint.textContent = '✓ Пароли совпадают';
+    hint.style.color = '#10b981';
+  } else {
+    hint.textContent = '✗ Пароли не совпадают';
+    hint.style.color = '#ef4444';
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base_owner.html" %}
+{% block title %}Клиенты — License Server{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <h1 style="margin:0">Клиенты</h1>
+</div>
+
+<!-- Форма создания -->
+<div class="section">
+  <details id="create-panel">
+    <summary style="cursor:pointer;font-weight:600;font-size:14px;color:#1f64e2;list-style:none;display:flex;align-items:center;gap:8px">
+      <span id="create-arrow" style="font-size:18px;transition:transform .2s">&#43;</span>
+      Создать нового клиента
+    </summary>
+    <form method="post" action="/owner/clients/new" style="margin-top:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+        <div>
+          <label>Название организации *</label>
+          <input name="org_name" class="input" placeholder="ООО Рога и Копыта" required/>
+        </div>
+        <div>
+          <label>Логин (уникальный) *</label>
+          <input name="login" class="input" placeholder="roga_kopyta" required/>
+        </div>
+
+        <div>
+          <label>Пароль (пусто = сгенерировать)</label>
+          <div style="display:flex;gap:8px">
+            <input id="cl-password" name="password" class="input" placeholder="Оставьте пустым" autocomplete="off"/>
+            <button type="button" class="btn small ghost" onclick="genClientPassword()">Сгенерировать</button>
+          </div>
+          <div id="cl-pw-bar" class="pw-strength" style="width:0;background:#e2e8f0"></div>
+        </div>
+        <div>
+          <label>Контактный email</label>
+          <input name="contact_email" class="input" type="email" placeholder="info@example.com"/>
+        </div>
+
+        <div>
+          <label>Максимум лицензий</label>
+          <input name="max_keys" class="input" type="number" value="5" min="1" max="1000"/>
+        </div>
+        <div>
+          <label>Срок ключей (дней, пусто = бессрочно)</label>
+          <input name="key_ttl_days" class="input" type="number" min="1" placeholder="365"/>
+        </div>
+
+        <div style="grid-column:1/-1">
+          <label>Примечания</label>
+          <textarea name="notes" class="textarea" rows="2" placeholder="Дополнительная информация"></textarea>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px">
+        <button class="btn">Создать клиента</button>
+      </div>
+    </form>
+  </details>
+</div>
+
+<!-- Таблица клиентов -->
+<div class="section" style="padding:0;overflow:hidden">
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Организация</th>
+          <th>Логин</th>
+          <th>Email</th>
+          <th class="right">Ключей</th>
+          <th class="right">Лимит</th>
+          <th>Статус</th>
+          <th class="right">Открыть</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in clients %}
+        <tr>
+          <td style="color:#94a3b8;font-size:12px">{{ c.id }}</td>
+          <td><strong>{{ c.org_name }}</strong></td>
+          <td style="font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
+          <td style="color:#64748b;font-size:12px">{{ c.contact_email or '—' }}</td>
+          <td class="right">{{ c.licenses|length }}</td>
+          <td class="right" style="color:#94a3b8">{{ c.max_keys }}</td>
+          <td>
+            {% if c.is_active %}
+              <span class="badge success">активен</span>
+            {% else %}
+              <span class="badge danger">отключён</span>
+            {% endif %}
+          </td>
+          <td class="right">
+            <a class="btn small ghost" href="/owner/clients/{{ c.id }}">Открыть</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">Клиентов нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function genClientPassword() {
+  fetch('/owner/internal/generate-password')
+    .then(r => r.json())
+    .then(d => {
+      var el = document.getElementById('cl-password');
+      el.value = d.password;
+      updateStrength(el);
+    });
+}
+
+function updateStrength(input) {
+  var pw = input.value, bar = document.getElementById('cl-pw-bar');
+  if (!bar) return;
+  var score = 0;
+  if (pw.length >= 8)  score++;
+  if (pw.length >= 12) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  var colors = ['#ef4444','#f59e0b','#f59e0b','#10b981','#10b981'];
+  bar.style.width  = (score * 20) + '%';
+  bar.style.background = pw.length ? colors[Math.min(score-1,4)] : '#e2e8f0';
+}
+
+var pwInput = document.getElementById('cl-password');
+if (pwInput) pwInput.addEventListener('input', function(){ updateStrength(this); });
+
+// Раскрыть форму при ошибке (если msg = error)
+var params = new URLSearchParams(location.search);
+if (params.get('msg_type') === 'error') {
+  document.getElementById('create-panel').open = true;
+}
+</script>
+{% endblock %}

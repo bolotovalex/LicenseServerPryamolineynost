@@ -1,0 +1,164 @@
+{% extends "base_org.html" %}
+{% block title %}Лицензии — {{ org.org_name }}{% endblock %}
+
+{% block content %}
+<h1 style="margin:0 0 20px;font-size:22px">Мои лицензии</h1>
+
+<!-- Статистика -->
+<div class="stat-bar">
+  <div class="stat-chip green">
+    <span class="val">{{ stats_active }}</span>
+    <span class="lbl">Активных</span>
+  </div>
+  <div class="stat-chip blue">
+    <span class="val">{{ stats_total }}</span>
+    <span class="lbl">Всего</span>
+  </div>
+  <div class="stat-chip gray">
+    <span class="val">{{ stats_expired }}</span>
+    <span class="lbl">Истекших</span>
+  </div>
+  <div class="stat-chip orange">
+    <span class="val">{{ org.max_keys }}</span>
+    <span class="lbl">Лимит</span>
+  </div>
+</div>
+
+<!-- Таблица лицензий -->
+<div class="org-card" style="padding:0;overflow:hidden">
+  {% if not licenses %}
+    <div style="padding:40px;text-align:center;color:#94a3b8">
+      Лицензий пока нет. Обратитесь к вашему менеджеру.
+    </div>
+  {% else %}
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>Ключ</th>
+          <th>Статус</th>
+          <th>Устройство</th>
+          <th>Активирован</th>
+          <th>До</th>
+          <th>Описание</th>
+          <th class="right">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for lic in licenses %}
+        {% set is_expired = lic.expires_at and lic.expires_at < now %}
+        <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
+
+          <!-- Ключ -->
+          <td>
+            <code style="font-family:monospace;font-size:12px;color:#334155;
+                         letter-spacing:.04em;user-select:all">{{ lic.key }}</code>
+          </td>
+
+          <!-- Статус -->
+          <td style="white-space:nowrap">
+            {% if lic.is_blocked %}
+              <span class="badge danger" title="{{ lic.block_reason or '' }}">заблокирован</span>
+            {% elif is_expired %}
+              <span class="badge gray">истёк</span>
+            {% elif lic.activated_at %}
+              <span class="badge success">активен</span>
+            {% else %}
+              <span class="badge new">не активирован</span>
+            {% endif %}
+          </td>
+
+          <!-- Устройство -->
+          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
+              style="font-size:12px;color:#64748b">
+            {{ lic.device_id or '—' }}
+          </td>
+
+          <!-- Активирован -->
+          <td style="white-space:nowrap;font-size:12px;color:#64748b"
+              title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') if lic.activated_at else '' }}">
+            {{ lic.activated_at.strftime('%Y-%m-%d') if lic.activated_at else '—' }}
+          </td>
+
+          <!-- Срок -->
+          <td style="white-space:nowrap;font-size:12px"
+              title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
+            {% if lic.expires_at %}
+              <span {% if is_expired %}style="color:#ef4444;font-weight:500"{% else %}style="color:#374151"{% endif %}>
+                {{ lic.expires_at.strftime('%Y-%m-%d') }}
+              </span>
+            {% else %}
+              <span style="color:#94a3b8">бессрочно</span>
+            {% endif %}
+          </td>
+
+          <!-- Описание -->
+          <td class="ellipsis w-280" title="{{ lic.description or '' }}"
+              style="font-size:13px">
+            {{ lic.description or '—' }}
+          </td>
+
+          <!-- Действия -->
+          <td class="right" style="white-space:nowrap">
+            <!-- Копировать ключ -->
+            <button class="btn small ghost"
+                    onclick="copyKey('{{ lic.key }}', this)"
+                    title="Копировать ключ в буфер обмена">
+              Копировать
+            </button>
+
+            <!-- Деактивировать (только у активированных, незаблокированных) -->
+            {% if lic.activated_at and not lic.is_blocked %}
+              <form method="post" action="/org/licenses/{{ lic.id }}/deactivate"
+                    style="display:inline"
+                    onsubmit="return confirm('Отвязать лицензию от устройства?\nПотребуется повторная активация.')">
+                <button class="btn small amber">Деактивировать</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+{% if licenses %}
+<p style="font-size:12px;color:#94a3b8;margin-top:8px">
+  Для активации лицензии используйте ключ в вашем приложении.
+  При потере доступа к устройству нажмите «Деактивировать» для переноса лицензии.
+</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyKey(key, btn) {
+  if (!navigator.clipboard) {
+    // fallback для старых браузеров
+    var ta = document.createElement('textarea');
+    ta.value = key;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showCopied(btn);
+    return;
+  }
+  navigator.clipboard.writeText(key).then(function() { showCopied(btn); });
+}
+
+function showCopied(btn) {
+  var orig = btn.textContent;
+  btn.textContent = 'Скопировано ✓';
+  btn.disabled = true;
+  setTimeout(function() {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }, 2000);
+}
+</script>
+{% endblock %}

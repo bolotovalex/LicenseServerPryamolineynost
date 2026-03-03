@@ -112,6 +112,23 @@ async def _send_password_reset(email: str, reset_url: str) -> None:
     )
 
 
+async def _send_feedback_received(
+    to: str, org_name: str, contact_email: str, subject: str, message: str, admin_url: str
+) -> None:
+    await send_email(
+        to=to,
+        subject=f"[Обратная связь] {subject} от {org_name}",
+        body_html=_render(
+            "feedback_received.html",
+            org_name=org_name,
+            contact_email=contact_email,
+            subject=subject,
+            message=message,
+            admin_url=admin_url,
+        ),
+    )
+
+
 # ── public API (fire-and-forget) ──────────────────────────────────────────────
 
 def notify_org_created(client, plain_password: str) -> None:
@@ -137,3 +154,12 @@ def notify_key_blocked(client, license, reason: str) -> None:
 def notify_password_reset(email: str, reset_url: str) -> None:
     """Уведомление со ссылкой на сброс пароля."""
     asyncio.create_task(_send_password_reset(email, reset_url))
+
+
+def notify_feedback_received(
+    to: str, org_name: str, contact_email: str, subject: str, message: str, admin_url: str
+) -> None:
+    """Уведомление администратору о новом обращении в поддержку."""
+    asyncio.create_task(
+        _send_feedback_received(to, org_name, contact_email, subject, message, admin_url)
+    )
