@@ -7,13 +7,34 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+
     environment:
-      APP_HOST: "0.0.0.0"
-      APP_PORT: "8000"
-      SECRET_KEY: "replace-me"
-      DATABASE_URL: "sqlite+aiosqlite:///data/licserver.db"
+      # База данных — путь внутри контейнера (./data монтируется ниже)
+      DATABASE_URL: "sqlite+aiosqlite:///./data/licserver.db"
+
+      # Секреты — переопределяют config/app.cfg.
+      # Рекомендуется задавать в config/app.cfg, а не здесь.
+      # SECRET_KEY: "CHANGE_ME_PLEASE"
+      # API_SECRET: "CHANGE_ME_API_SECRET"
+
+      # SMTP-авторизация — переопределяет config/smtp.cfg (опционально)
+      # SMTP_USER: "your@email.com"
+      # SMTP_PASSWORD: "your-app-password"
+
     volumes:
+      # Конфигурация (монтируется поверх бейк-ин копии из образа)
+      - ./config:/app/config:ro
+
+      # Персистентные данные (БД, логотипы в BLOB)
+      - ./data:/app/data
+
+      # Логи (доступны на хосте для просмотра и rotation)
+      - ./logs:/app/logs
+
+      # Шаблоны и статика — правка без пересборки
       - ./templates:/app/templates:ro
       - ./static:/app/static:ro
+
+      # Код приложения — удобно при разработке;
+      # для продакшена закомментируйте, чтобы использовать бейк-ин код
       - ./app:/app/app:ro
-      - ./data:/data
