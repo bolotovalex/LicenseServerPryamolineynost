@@ -129,6 +129,40 @@ async def _send_feedback_received(
     )
 
 
+async def _send_feedback_reply_to_org(
+    to: str, org_name: str, subject: str, reply_text: str, thread_url: str
+) -> None:
+    """Отправляет организации уведомление об ответе администратора."""
+    await send_email(
+        to=to,
+        subject=f"Ответ на ваше обращение: {subject}",
+        body_html=_render(
+            "feedback_reply_org.html",
+            org_name=org_name,
+            subject=subject,
+            reply_text=reply_text,
+            thread_url=thread_url,
+        ),
+    )
+
+
+async def _send_feedback_reply_to_admin(
+    to: str, org_name: str, subject: str, reply_text: str, admin_url: str
+) -> None:
+    """Отправляет администратору уведомление об ответе организации."""
+    await send_email(
+        to=to,
+        subject=f"[Ответ] {org_name} ответил на обращение: {subject}",
+        body_html=_render(
+            "feedback_reply_admin.html",
+            org_name=org_name,
+            subject=subject,
+            reply_text=reply_text,
+            admin_url=admin_url,
+        ),
+    )
+
+
 # ── public API (fire-and-forget) ──────────────────────────────────────────────
 
 def notify_org_created(client, plain_password: str) -> None:
@@ -163,3 +197,23 @@ def notify_feedback_received(
     asyncio.create_task(
         _send_feedback_received(to, org_name, contact_email, subject, message, admin_url)
     )
+
+
+def notify_feedback_reply_to_org(
+    to: str, org_name: str, subject: str, reply_text: str, thread_url: str
+) -> None:
+    """Уведомление организации об ответе администратора."""
+    if to:
+        asyncio.create_task(
+            _send_feedback_reply_to_org(to, org_name, subject, reply_text, thread_url)
+        )
+
+
+def notify_feedback_reply_to_admin(
+    to: str, org_name: str, subject: str, reply_text: str, admin_url: str
+) -> None:
+    """Уведомление администратора об ответе организации."""
+    if to:
+        asyncio.create_task(
+            _send_feedback_reply_to_admin(to, org_name, subject, reply_text, admin_url)
+        )

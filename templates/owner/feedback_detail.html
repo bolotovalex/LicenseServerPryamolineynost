@@ -5,55 +5,80 @@
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
   <a href="/owner/feedback" style="color:#64748b;font-size:13px">← Обратная связь</a>
   <span style="color:#cbd5e1">/</span>
-  <h1 style="margin:0;font-size:22px">Сообщение #{{ fb.id }}</h1>
+  <h1 style="margin:0;font-size:22px">{{ fb.subject }}</h1>
+  {% if fb.status == 'new' %}
+    <span class="badge danger">новое</span>
+  {% elif fb.status == 'read' %}
+    <span class="badge yellow">прочитано</span>
+  {% else %}
+    <span class="badge success">отвечено</span>
+  {% endif %}
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start">
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
 
-  <!-- Основной блок -->
+  <!-- ═══ Диалог ═══ -->
   <div>
-    <div class="section">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
-        <div>
-          <div style="font-size:18px;font-weight:600;margin-bottom:4px">{{ fb.subject }}</div>
-          <div style="font-size:12px;color:#64748b">
-            {{ fb.created_at.strftime('%Y-%m-%d %H:%M') }}
-            {% if fb.org_name %}· <strong>{{ fb.org_name }}</strong>{% endif %}
-            {% if fb.contact_email %}· {{ fb.contact_email }}{% endif %}
-            {% if fb.ip_address %}· IP: {{ fb.ip_address }}{% endif %}
-          </div>
-        </div>
-        <div>
-          {% if fb.status == 'new' %}
-            <span class="badge danger">новое</span>
-          {% elif fb.status == 'read' %}
-            <span class="badge yellow">прочитано</span>
-          {% else %}
-            <span class="badge success">отвечено</span>
+
+    <!-- Исходное сообщение -->
+    <div class="section" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;color:#1e293b">
+          {{ fb.org_name or fb.entity_type }}
+          {% if fb.contact_email %}
+            <span style="color:#64748b;font-weight:400">&lt;{{ fb.contact_email }}&gt;</span>
           {% endif %}
         </div>
+        <div style="font-size:11px;color:#94a3b8">{{ fb.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
       </div>
-
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;
-                  white-space:pre-wrap;font-size:14px;line-height:1.6;color:#374151;min-height:120px">{{ fb.message }}</div>
-
-      {% if fb.contact_email %}
-        <div style="margin-top:14px">
-          <a class="btn small" href="mailto:{{ fb.contact_email }}?subject=Re%3A%20{{ fb.subject | replace(' ', '%20') | replace('&', '%26') }}">
-            &#9993; Ответить по email
-          </a>
-        </div>
-      {% endif %}
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;
+                  white-space:pre-wrap;font-size:13px;line-height:1.7;color:#374151">{{ fb.message }}</div>
     </div>
+
+    <!-- Сообщения диалога -->
+    {% for msg in fb.messages %}
+    <div class="section" style="margin-bottom:12px;
+         {% if msg.sender_type == 'admin' %}border-color:#bfdbfe;background:#eff6ff{% else %}border-color:#e2e8f0{% endif %}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:600;
+             color:{% if msg.sender_type == 'admin' %}#1f64e2{% else %}#1e293b{% endif %}">
+          {% if msg.sender_type == 'admin' %}
+            &#9670; {{ msg.sender_name or 'Администратор' }}
+          {% else %}
+            {{ msg.sender_name or 'Организация' }}
+          {% endif %}
+        </div>
+        <div style="font-size:11px;color:#94a3b8">{{ msg.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+      <div style="white-space:pre-wrap;font-size:13px;line-height:1.7;color:#374151">{{ msg.message }}</div>
+    </div>
+    {% endfor %}
+
+    <!-- Форма ответа -->
+    <div class="section">
+      <div class="section-title">Ответить</div>
+      <form method="post" action="/owner/feedback/{{ fb.id }}/reply">
+        <textarea name="message" class="textarea" rows="4"
+                  placeholder="Введите ответ для организации..." required
+                  style="margin-bottom:10px"></textarea>
+        <button class="btn">Отправить ответ</button>
+        {% if fb.contact_email %}
+          <span style="font-size:11px;color:#64748b;margin-left:10px">
+            Email будет отправлен на {{ fb.contact_email }}
+          </span>
+        {% endif %}
+      </form>
+    </div>
+
   </div>
 
-  <!-- Боковая панель -->
+  <!-- ═══ Боковая панель ═══ -->
   <div>
+    <!-- Управление -->
     <div class="section">
       <div class="section-title">Управление</div>
       <form method="post" action="/owner/feedback/{{ fb.id }}/update">
-
-        <div style="margin-bottom:14px">
+        <div style="margin-bottom:12px">
           <label>Статус</label>
           <select name="status" class="input">
             <option value="new"      {% if fb.status=='new'      %}selected{% endif %}>Новое</option>
@@ -61,40 +86,40 @@
             <option value="answered" {% if fb.status=='answered' %}selected{% endif %}>Отвечено</option>
           </select>
         </div>
-
-        <div style="margin-bottom:14px">
-          <label>Заметка (внутренняя)</label>
-          <textarea name="admin_note" class="textarea" rows="4"
-                    placeholder="Комментарий для внутреннего использования">{{ fb.admin_note or '' }}</textarea>
+        <div style="margin-bottom:12px">
+          <label>Внутренняя заметка</label>
+          <textarea name="admin_note" class="textarea" rows="3"
+                    placeholder="Видна только администраторам">{{ fb.admin_note or '' }}</textarea>
         </div>
-
         <button class="btn small">Сохранить</button>
       </form>
     </div>
 
+    <!-- Детали -->
     <div class="section" style="font-size:12px;color:#64748b">
       <div class="section-title">Детали</div>
       <table style="width:100%;border-collapse:collapse">
         <tr style="border-bottom:1px solid #f1f5f9">
-          <td style="padding:6px 0;color:#94a3b8">ID</td>
-          <td style="padding:6px 0">#{{ fb.id }}</td>
+          <td style="padding:5px 0;color:#94a3b8;white-space:nowrap">ID</td>
+          <td style="padding:5px 0">#{{ fb.id }}</td>
         </tr>
         <tr style="border-bottom:1px solid #f1f5f9">
-          <td style="padding:6px 0;color:#94a3b8">Тип</td>
-          <td style="padding:6px 0">{{ fb.entity_type }}</td>
+          <td style="padding:5px 0;color:#94a3b8">Тип</td>
+          <td style="padding:5px 0">{{ fb.entity_type }}{% if fb.entity_id %} #{{ fb.entity_id }}{% endif %}</td>
         </tr>
-        {% if fb.entity_id %}
+        {% if fb.ip_address %}
         <tr style="border-bottom:1px solid #f1f5f9">
-          <td style="padding:6px 0;color:#94a3b8">ID объекта</td>
-          <td style="padding:6px 0">{{ fb.entity_id }}</td>
+          <td style="padding:5px 0;color:#94a3b8">IP</td>
+          <td style="padding:5px 0">{{ fb.ip_address }}</td>
         </tr>
         {% endif %}
-        <tr style="border-bottom:1px solid #f1f5f9">
-          <td style="padding:6px 0;color:#94a3b8">User-Agent</td>
-          <td style="padding:6px 0;word-break:break-all">{{ fb.user_agent or '—' }}</td>
+        <tr>
+          <td style="padding:5px 0;color:#94a3b8">Сообщений</td>
+          <td style="padding:5px 0">{{ fb.messages|length + 1 }}</td>
         </tr>
       </table>
     </div>
   </div>
+
 </div>
 {% endblock %}

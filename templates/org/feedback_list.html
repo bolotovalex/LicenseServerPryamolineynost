@@ -50,18 +50,17 @@
       </thead>
       <tbody>
       {% for fb in items %}
-        <tr {% if fb.status == 'new' %}style="background:#fefce8"{% endif %}>
+        <tr style="cursor:pointer{% if fb.status == 'answered' %};background:#f0fdf4{% endif %}"
+            onclick="location.href='/org/feedback/{{ fb.id }}'">
           <td style="white-space:nowrap;font-size:12px;color:#64748b">
             {{ fb.created_at.strftime('%Y-%m-%d %H:%M') }}
           </td>
           <td>
             <span style="font-size:14px">{{ fb.subject }}</span>
-            {% if fb.admin_note %}
-              <div style="font-size:12px;color:#64748b;margin-top:3px;
-                          background:#f8fafc;border-left:3px solid #e2e8f0;
-                          padding:4px 8px;border-radius:0 4px 4px 0;margin-top:4px">
-                <strong>Ответ:</strong> {{ fb.admin_note }}
-              </div>
+            {% if fb.messages %}
+              <span style="font-size:11px;color:#64748b;margin-left:6px">
+                &#128172; {{ fb.messages|length }}
+              </span>
             {% endif %}
           </td>
           <td style="white-space:nowrap">
