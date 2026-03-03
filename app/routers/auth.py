@@ -90,7 +90,7 @@ async def login_post(
     client = None
     if not admin:
         client = (await db.execute(
-            select(Client).where(Client.login == login)
+            select(Client).where(or_(Client.login == login, Client.contact_email == login))
         )).scalar_one_or_none()
 
     entity = admin or client

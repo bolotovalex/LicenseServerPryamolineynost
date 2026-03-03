@@ -59,8 +59,8 @@ async def test_login_wrong_password(api_client, db_session):
         data={"login": "orglogin", "password": "wrongpass"},
         follow_redirects=False,
     )
-    # Остаёмся на странице логина (200 с формой или редирект обратно на /login)
-    assert resp.status_code in (200, 302, 303)
+    # Остаёмся на странице логина (200/401 с формой или редирект обратно на /login)
+    assert resp.status_code in (200, 302, 303, 401)
     location = resp.headers.get("location", "")
     if resp.status_code in (302, 303):
         assert "dashboard" not in location

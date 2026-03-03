@@ -21,8 +21,10 @@ async def test_initial_status_not_activated(db_session):
 @pytest.mark.asyncio
 async def test_status_activated_after_api_call(api_client, db_session):
     _, lic = await make_client_with_license(db_session)
+    lic_id = lic.id
     await api_client.post("/api/activate", json={"key": lic.key, "device_id": "dev-x"})
-    fresh = (await db_session.execute(select(License).where(License.id == lic.id))).scalar_one()
+    db_session.expire_all()
+    fresh = (await db_session.execute(select(License).where(License.id == lic_id))).scalar_one()
     assert fresh.status == "activated"
     assert fresh.computed_status() == "activated"
 
@@ -30,9 +32,11 @@ async def test_status_activated_after_api_call(api_client, db_session):
 @pytest.mark.asyncio
 async def test_status_released_after_deactivate(api_client, db_session):
     _, lic = await make_client_with_license(db_session)
+    lic_id = lic.id
     await api_client.post("/api/activate", json={"key": lic.key, "device_id": "dev-x"})
     await api_client.post("/api/deactivate", json={"key": lic.key, "device_id": "dev-x"})
-    fresh = (await db_session.execute(select(License).where(License.id == lic.id))).scalar_one()
+    db_session.expire_all()
+    fresh = (await db_session.execute(select(License).where(License.id == lic_id))).scalar_one()
     assert fresh.status == "released"
 
 
