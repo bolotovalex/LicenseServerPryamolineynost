@@ -162,6 +162,15 @@ async def activate(
         await db.refresh(lic)
         return {"status": "ok", **_license_info(lic, client, now)}
 
+    # Сценарий 4: ключ активирован другим устройством — DEVICE_MISMATCH
+    # Проверяем ДО освобождения старой лицензии, чтобы не зафиксировать
+    # изменения old_lic при ошибке.
+    if lic.status == "activated" and lic.device_id != data.device_id:
+        await _log_api_error(db, request, "activate", "DEVICE_MISMATCH", data.device_id, ip, lic.id)
+        return JSONResponse(status_code=409, content=_err(
+            "Лицензия уже активирована на другом устройстве", "DEVICE_MISMATCH",
+        ))
+
     # Сценарий 3: device_id уже привязан к другой активированной лицензии — освобождаем её
     old_lic = (await db.execute(
         select(License).where(
@@ -187,13 +196,6 @@ async def activate(
             details={"old_key": old_lic.key[:8], "new_key": data.key[:8]},
             success=True, request=request,
         )
-
-    # Сценарий 4: ключ активирован другим устройством — DEVICE_MISMATCH
-    if lic.status == "activated" and lic.device_id != data.device_id:
-        await _log_api_error(db, request, "activate", "DEVICE_MISMATCH", data.device_id, ip, lic.id)
-        return JSONResponse(status_code=409, content=_err(
-            "Лицензия уже активирована на другом устройстве", "DEVICE_MISMATCH",
-        ))
 
     # Сценарий 1: активация
     lic.activated_at       = now
