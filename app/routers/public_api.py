@@ -66,6 +66,7 @@ def _expires_value(expires_at: dt.datetime | None) -> str | None:
 
 def _license_info(lic: License, client: Client | None, now: dt.datetime | None = None) -> dict:
     now = now or dt.datetime.utcnow()
+    logo_url = f"/owner/clients/{client.id}/logo" if client and client.logo_data else None
     return {
         "license_id":   lic.id,
         "organization": client.org_name if client else None,
@@ -76,7 +77,36 @@ def _license_info(lic: License, client: Client | None, now: dt.datetime | None =
         "version":      lic.version,
         "device_id":    lic.device_id,
         "device_name":  lic.device_name,
+        "logo_url":     logo_url,
     }
+
+
+async def _log_api_error(
+    db, request: Request, action: str, code: str,
+    device_id: str | None, ip: str,
+    lic_id: int | None = None,
+) -> None:
+    """Логирует ошибку API в LicenseAction (если есть lic_id) и AuditLog."""
+    if lic_id:
+        db.add(LicenseAction(
+            license_id=lic_id,
+            action=action,
+            reason=code,
+            actor=device_id or "unknown",
+            ip=ip,
+        ))
+    await log_action(
+        db=db,
+        actor_type="api_client",
+        action=f"error_{action}",
+        actor_login=device_id or "unknown",
+        entity_type="license",
+        entity_id=lic_id,
+        details={"code": code, "device_id": device_id, "ip": ip},
+        success=False,
+        request=request,
+    )
+    await db.commit()
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -90,49 +120,91 @@ async def activate(
     """
     Активация лицензионного ключа на устройстве.
     Идемпотентна для того же device_id (повторный вызов → подтверждение).
+    Сценарий 3: если device_id уже привязан к другой лицензии — освобождает её.
     """
     now = dt.datetime.utcnow()
+    ip  = _get_ip(request)
+
     lic = (await db.execute(select(License).where(License.key == data.key))).scalar_one_or_none()
     if not lic:
+        await _log_api_error(db, request, "activate", "LICENSE_NOT_FOUND", data.device_id, ip)
         return JSONResponse(status_code=404, content=_err("Лицензия не найдена", "LICENSE_NOT_FOUND"))
 
     client = await db.get(Client, lic.client_id)
-    info = _license_info(lic, client, now)
 
     if lic.is_blocked:
+        await _log_api_error(db, request, "activate", "LICENSE_BLOCKED", data.device_id, ip, lic.id)
         return JSONResponse(status_code=403, content=_err(
-            f"Лицензия заблокирована: {lic.block_reason or ''}".strip(), "LICENSE_BLOCKED", info
+            f"Лицензия заблокирована: {lic.block_reason or ''}".strip(), "LICENSE_BLOCKED",
+            {"reason": lic.block_reason or ""},
         ))
 
     if lic.expires_at and now > lic.expires_at:
+        await _log_api_error(db, request, "activate", "LICENSE_EXPIRED", data.device_id, ip, lic.id)
         return JSONResponse(status_code=403, content=_err(
-            "Срок действия лицензии истёк", "LICENSE_EXPIRED", info
+            "Срок действия лицензии истёк", "LICENSE_EXPIRED",
         ))
 
     if data.key_version and data.key_version != lic.version:
+        await _log_api_error(db, request, "activate", "VERSION_MISMATCH", data.device_id, ip, lic.id)
         return JSONResponse(status_code=409, content=_err(
-            "Версия ключа устарела, запросите актуальный ключ", "VERSION_MISMATCH", info
+            "Версия ключа устарела, запросите актуальный ключ", "VERSION_MISMATCH",
         ))
 
-    if lic.activated_at:
-        if lic.device_id == data.device_id:
-            # Повторная активация тем же устройством — подтверждаем
-            return {"status": "ok", **info}
+    # Сценарий 2: тот же device_id — подтверждаем, обновляем имя/комментарий
+    if lic.status == "activated" and lic.device_id == data.device_id:
+        if data.device_name:
+            lic.device_name = data.device_name
+        if data.comment:
+            lic.device_comment = data.comment
+        await db.commit()
+        await db.refresh(lic)
+        return {"status": "ok", **_license_info(lic, client, now)}
+
+    # Сценарий 3: device_id уже привязан к другой активированной лицензии — освобождаем её
+    old_lic = (await db.execute(
+        select(License).where(
+            License.device_id == data.device_id,
+            License.status == "activated",
+            License.id != lic.id,
+        )
+    )).scalar_one_or_none()
+    if old_lic:
+        old_lic.status        = "released"
+        old_lic.activated_at  = None
+        old_lic.device_id     = None
+        old_lic.device_name   = None
+        old_lic.device_comment = None
+        db.add(LicenseAction(
+            license_id=old_lic.id, action="deactivate",
+            reason="device switched to new key",
+            actor=data.device_id, ip=ip,
+        ))
+        await log_action(
+            db=db, actor_type="api_client", action="device_key_swap",
+            actor_login=data.device_id, entity_type="license", entity_id=old_lic.id,
+            details={"old_key": old_lic.key[:8], "new_key": data.key[:8]},
+            success=True, request=request,
+        )
+
+    # Сценарий 4: ключ активирован другим устройством — DEVICE_MISMATCH
+    if lic.status == "activated" and lic.device_id != data.device_id:
+        await _log_api_error(db, request, "activate", "DEVICE_MISMATCH", data.device_id, ip, lic.id)
         return JSONResponse(status_code=409, content=_err(
-            "Лицензия уже активирована на другом устройстве", "DEVICE_MISMATCH", info
+            "Лицензия уже активирована на другом устройстве", "DEVICE_MISMATCH",
         ))
 
-    # Активация
-    lic.activated_at   = now
-    lic.device_id      = data.device_id
-    lic.device_name    = data.device_name
-    lic.device_comment = data.comment
+    # Сценарий 1: активация
+    lic.activated_at       = now
+    lic.device_id          = data.device_id
+    lic.device_name        = data.device_name
+    lic.device_comment     = data.comment
     lic.activation_payload = data.payload
-    lic.status         = "activated"
+    lic.status             = "activated"
 
     db.add(LicenseAction(
         license_id=lic.id, action="activate",
-        actor=data.device_id, ip=_get_ip(request),
+        actor=data.device_id, ip=ip,
         desc=f"device_name={data.device_name or '—'}",
     ))
     await log_action(
@@ -143,7 +215,7 @@ async def activate(
     )
     await db.commit()
     await db.refresh(lic)
-    return {"status": "ok", **_license_info(lic, client)}
+    return {"status": "ok", **_license_info(lic, client, now)}
 
 
 @router.post("/deactivate")
@@ -197,8 +269,7 @@ async def deactivate(
         details={"key_prefix": data.key[:8]}, success=True, request=request,
     )
     await db.commit()
-    await db.refresh(lic)
-    return {"status": "ok", **_license_info(lic, client)}
+    return {"status": "ok", "code": "DEACTIVATED", "message": "Лицензия освобождена"}
 
 
 @router.post("/transfer")

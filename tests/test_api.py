@@ -88,7 +88,9 @@ async def test_deactivate_success(api_client, db_session):
     await api_client.post("/api/activate", json={"key": lic.key, "device_id": "dev-001"})
     resp = await api_client.post("/api/deactivate", json={"key": lic.key, "device_id": "dev-001"})
     assert resp.status_code == 200
-    assert resp.json()["status"] == "released"
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["code"] == "DEACTIVATED"
 
 
 @pytest.mark.asyncio
