@@ -8,13 +8,8 @@
 </div>
 
 <!-- Форма нового обращения (скрыта по умолчанию) -->
-<<<<<<< HEAD
 <div id="new-feedback-form" class="section" hidden>
   <div class="section-title">Новое обращение</div>
-=======
-<div id="new-feedback-form" class="org-card" hidden>
-  <div class="org-card-title">Новое обращение</div>
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
   <form method="post" action="/org/feedback/new">
     <div style="display:flex;flex-direction:column;gap:14px">
       <div>
@@ -36,11 +31,7 @@
 </div>
 
 <!-- Список обращений -->
-<<<<<<< HEAD
 <div class="section" style="padding:0;overflow:hidden">
-=======
-<div class="org-card" style="padding:0;overflow:hidden">
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
   {% if not items %}
     <div style="padding:48px;text-align:center;color:#94a3b8">
       <div style="font-size:36px;margin-bottom:12px">&#128172;</div>
@@ -59,30 +50,17 @@
       </thead>
       <tbody>
       {% for fb in items %}
-<<<<<<< HEAD
         <tr style="cursor:pointer{% if fb.status == 'answered' %};background:#f0fdf4{% endif %}"
             onclick="location.href='/org/feedback/{{ fb.id }}'">
-=======
-        <tr {% if fb.status == 'new' %}style="background:#fefce8"{% endif %}>
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
           <td style="white-space:nowrap;font-size:12px;color:#64748b">
             {{ fb.created_at.strftime('%Y-%m-%d %H:%M') }}
           </td>
           <td>
             <span style="font-size:14px">{{ fb.subject }}</span>
-<<<<<<< HEAD
             {% if fb.messages %}
               <span style="font-size:11px;color:#64748b;margin-left:6px">
                 &#128172; {{ fb.messages|length }}
               </span>
-=======
-            {% if fb.admin_note %}
-              <div style="font-size:12px;color:#64748b;margin-top:3px;
-                          background:#f8fafc;border-left:3px solid #e2e8f0;
-                          padding:4px 8px;border-radius:0 4px 4px 0;margin-top:4px">
-                <strong>Ответ:</strong> {{ fb.admin_note }}
-              </div>
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             {% endif %}
           </td>
           <td style="white-space:nowrap">

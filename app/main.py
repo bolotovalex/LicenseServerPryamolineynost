@@ -177,11 +177,7 @@ async def startup():
         await sync_from_config(s)
 
     nonce_store.start_cleanup()
-<<<<<<< HEAD
     logger.info("Приложение запущено (db_type=%s).", db_config.db_type)
-=======
-    logger.info("Приложение запущено.")
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
 
 # ── routers & static ─────────────────────────────────────────────────────────
