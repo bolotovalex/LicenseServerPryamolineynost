@@ -1011,9 +1011,9 @@ async def backup_create(request: Request, db: AsyncSession = Depends(get_session
     await require_owner(request, db)
     from app.services.backup import create_backup
     data = await create_backup(db)
-    ts   = dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts   = dt.datetime.now(dt.UTC).strftime("%Y%m%d_%H%M%S")
     (BACKUP_DIR / f"backup_{ts}.json").write_bytes(data)
-    return RedirectResponse(url="/owner/backup", status_code=303)
+    return _flash("/owner/backup", "Резервная копия создана")
 
 
 @router.get("/backup/download/{filename}")
@@ -1039,7 +1039,7 @@ async def backup_upload(
     if not safe.endswith(".json"):
         safe += ".json"
     (BACKUP_DIR / safe).write_bytes(await file.read())
-    return RedirectResponse(url="/owner/backup", status_code=303)
+    return _flash("/owner/backup", f"Файл «{safe}» загружен")
 
 
 @router.post("/backup/restore/{filename}")
@@ -1075,7 +1075,7 @@ async def backup_delete(filename: str, request: Request, db: AsyncSession = Depe
     path = BACKUP_DIR / filename
     if path.exists():
         path.unlink()
-    return RedirectResponse(url="/owner/backup", status_code=303)
+    return _flash("/owner/backup", f"Файл «{filename}» удалён")
 
 
 # ── утилиты ───────────────────────────────────────────────────────────────────

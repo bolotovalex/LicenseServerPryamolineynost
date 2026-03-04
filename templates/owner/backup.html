@@ -3,13 +3,11 @@
 
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
-  <h1 style="margin:0;font-size:22px">Резервные копии</h1>
+  <h1 style="margin:0">Резервные копии</h1>
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-
     <form method="post" action="/owner/backup/create">
       <button class="btn">+ Создать резервную копию</button>
     </form>
-
     <form method="post" action="/owner/backup/upload" enctype="multipart/form-data">
       <label class="btn small ghost" style="cursor:pointer">
         &#8593; Загрузить файл
@@ -17,18 +15,17 @@
                onchange="this.form.submit()"/>
       </label>
     </form>
-
   </div>
 </div>
 
 {% if error %}
-<div class="section" style="background:#fef2f2;border-color:#fecaca;padding:14px 18px;color:#991b1b;margin-bottom:16px">
+<div class="flash error" style="margin-bottom:16px">
   <strong>Ошибка:</strong> {{ error }}
 </div>
 {% endif %}
 
 {% if restored %}
-<div class="section" style="background:#f0fdf4;border-color:#86efac;padding:14px 18px;color:#14532d;margin-bottom:16px">
+<div class="flash success" style="margin-bottom:16px">
   <strong>Восстановление из «{{ restored }}» завершено успешно.</strong>
   <ul style="margin:8px 0 0 18px;font-size:13px">
     {% for table, count in restore_stats.items() %}
@@ -51,7 +48,7 @@
           <th>Файл</th>
           <th>Дата</th>
           <th class="right">Размер</th>
-          <th class="right">Действия</th>
+          <th class="right"></th>
         </tr>
       </thead>
       <tbody>
@@ -73,7 +70,7 @@
               </form>
               <form method="post" action="/owner/backup/delete/{{ b.name }}"
                     onsubmit="return confirm('Удалить файл «{{ b.name }}»?')">
-                <button class="btn small ghost" style="color:#ef4444">Удалить</button>
+                <button class="btn small red">Удалить</button>
               </form>
             </div>
           </td>
