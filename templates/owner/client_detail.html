@@ -25,6 +25,28 @@
   cursor: not-allowed;
   pointer-events: auto;
 }
+.row-menu-wrap { position: relative; display: inline-block; }
+.row-menu-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; color: #94a3b8; padding: 2px 6px;
+  border-radius: 4px; line-height: 1;
+}
+.row-menu-btn:hover { background: #f1f5f9; color: #334155; }
+.row-menu {
+  display: none; position: fixed;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); z-index: 9999;
+  min-width: 160px; padding: 4px 0;
+}
+.row-menu.open { display: block; }
+.row-menu-item {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer;
+  padding: 7px 14px; font-size: 13px; color: #374151; white-space: nowrap;
+}
+.row-menu-item:hover { background: #f8fafc; }
+.row-menu-item.red { color: #dc2626; }
+.row-menu-item.red:hover { background: #fef2f2; }
 </style>
 {% endblock %}
 
@@ -272,40 +294,20 @@
             <td class="right" style="white-space:nowrap">
               <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode"
                  target="_blank" title="QR-код">QR</a>
-              <details class="row-actions">
-                <summary>&#8942;</summary>
-                <div class="menu" style="min-width:320px">
-                  <form method="post" action="/owner/licenses/{{ lic.id }}/reset">
-                    <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">СБРОС</div>
-                    <div class="line">
-                      <input class="input" name="reason" placeholder="Причина *" required style="flex:1"/>
-                      <input class="input" name="expires_at" type="date" style="width:140px"/>
-                      <button class="btn small amber">Сбросить</button>
-                    </div>
-                  </form>
-                  <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
+              <div class="row-menu-wrap">
+                <button class="row-menu-btn" onclick="toggleRowMenu(this)">&#8942;</button>
+                <div class="row-menu">
+                  <button class="row-menu-item" onclick="openResetModal({{ lic.id }});closeRowMenu()">Сброс / продлить</button>
                   {% if lic.is_blocked %}
-                    <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">РАЗБЛОКИРОВКА</div>
-                    <form method="post" action="/owner/licenses/{{ lic.id }}/unblock">
-                      <button class="btn small green">Разблокировать</button>
-                    </form>
+                    <button class="row-menu-item" onclick="submitForm('unblock-{{ lic.id }}');closeRowMenu()">Разблокировать</button>
                   {% else %}
-                    <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">БЛОКИРОВКА</div>
-                    <form method="post" action="/owner/licenses/{{ lic.id }}/block">
-                      <div class="line">
-                        <input class="input" name="reason" placeholder="Причина блокировки *" required style="flex:1"/>
-                        <button class="btn small red">Заблокировать</button>
-                      </div>
-                    </form>
+                    <button class="row-menu-item" onclick="openBlockModal({{ lic.id }});closeRowMenu()">Заблокировать</button>
                   {% endif %}
-                  <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
-                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">УДАЛЕНИЕ</div>
-                  <form method="post" action="/owner/licenses/{{ lic.id }}/delete"
-                        onsubmit="return confirm('Удалить ключ {{ lic.key }}?\nОн останется в архиве.')">
-                    <button class="btn small red">Удалить лицензию</button>
-                  </form>
+                  <button class="row-menu-item red" onclick="deleteLicense({{ lic.id }}, '{{ lic.key }}');closeRowMenu()">Удалить лицензию</button>
                 </div>
-              </details>
+              </div>
+              <form id="unblock-{{ lic.id }}" method="post" action="/owner/licenses/{{ lic.id }}/unblock" style="display:none"></form>
+              <form id="delete-{{ lic.id }}" method="post" action="/owner/licenses/{{ lic.id }}/delete" style="display:none"></form>
             </td>
           </tr>
         {% endfor %}
@@ -426,6 +428,56 @@
 </div>
 
 
+<!-- ═══════════════ МОДАЛКА СБРОСА ЛИЦЕНЗИИ ═══════════════ -->
+<div id="resetModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeResetModal()"></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              padding:24px;width:420px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <strong style="font-size:15px">Сброс / продление лицензии</strong>
+      <button type="button" onclick="closeResetModal()"
+              style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">&times;</button>
+    </div>
+    <form id="resetLicForm" method="post">
+      <div style="margin-bottom:12px">
+        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px">Причина *</label>
+        <input id="resetReason" name="reason" class="input" placeholder="Причина сброса" required/>
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px">Новый срок действия (пусто — без изменений)</label>
+        <input name="expires_at" class="input" type="date"/>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn small ghost" onclick="closeResetModal()">Отмена</button>
+        <button type="submit" class="btn small amber">Сбросить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════ МОДАЛКА БЛОКИРОВКИ ═══════════════ -->
+<div id="blockModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeBlockModal()"></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              padding:24px;width:400px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <strong style="font-size:15px">Блокировка лицензии</strong>
+      <button type="button" onclick="closeBlockModal()"
+              style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">&times;</button>
+    </div>
+    <form id="blockLicForm" method="post">
+      <div style="margin-bottom:18px">
+        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:5px">Причина блокировки *</label>
+        <input id="blockReason" name="reason" class="input" placeholder="Причина" required/>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button type="button" class="btn small ghost" onclick="closeBlockModal()">Отмена</button>
+        <button type="submit" class="btn small red">Заблокировать</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ═══════════════ МОДАЛКА СБРОСА ПАРОЛЯ ═══════════════ -->
 <div id="resetPwModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
   <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeResetPwModal()"></div>
@@ -462,37 +514,6 @@
 </div>
 
 
-<!-- ═══════════════ МОДАЛКА ИСТОРИИ КЛЮЧЕЙ ═══════════════ -->
-<div id="keysModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
-  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" data-close-keys></div>
-  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
-              min-width:500px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-    <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-      <strong>История ключей</strong>
-      <button data-close-keys style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
-    </div>
-    <div id="keysList" style="padding:16px;max-height:60vh;overflow-y:auto"></div>
-    <div style="padding:12px 18px;border-top:1px solid #e2e8f0;text-align:right">
-      <button class="btn small ghost" data-close-keys>Закрыть</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ МОДАЛКА ИСТОРИИ ДЕЙСТВИЙ ═══════════════ -->
-<div id="actionsModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
-  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" data-close-actions></div>
-  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
-              min-width:560px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
-    <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-      <strong>История действий</strong>
-      <button data-close-actions style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
-    </div>
-    <div id="actionsList" style="padding:16px;max-height:60vh;overflow-y:auto"></div>
-    <div style="padding:12px 18px;border-top:1px solid #e2e8f0;text-align:right">
-      <button class="btn small ghost" data-close-actions>Закрыть</button>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -570,81 +591,51 @@ function copyKey(key, btn) {
   });
 }
 
-// ── Модалка истории ключей ──
-(function(){
-  var modal = document.getElementById('keysModal');
-  var list  = document.getElementById('keysList');
+// ── Dropdown-меню ⋮ ──
+var _openMenu = null;
+function toggleRowMenu(btn) {
+  var menu = btn.nextElementSibling;
+  if (_openMenu && _openMenu !== menu) { _openMenu.classList.remove('open'); }
+  if (menu.classList.contains('open')) { menu.classList.remove('open'); _openMenu = null; return; }
+  var r = btn.getBoundingClientRect();
+  menu.style.top  = (r.bottom + 4) + 'px';
+  menu.style.left = Math.max(4, r.right - 170) + 'px';
+  menu.classList.add('open');
+  _openMenu = menu;
+}
+function closeRowMenu() {
+  if (_openMenu) { _openMenu.classList.remove('open'); _openMenu = null; }
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.row-menu-wrap')) closeRowMenu();
+});
 
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-open-keys]');
-    if (!btn) return;
-    var data = JSON.parse(btn.getAttribute('data-open-keys') || '[]');
-    list.innerHTML = data.length ? data.map(function(item) {
-      var badge = item.active
-        ? '<span class="badge success">действует</span>'
-        : '<span class="badge gray">деактивирован</span>';
-      var deact = item.deactivated_at
-        ? '<span style="font-size:11px;color:#94a3b8">до&nbsp;' + item.deactivated_at.slice(0,10) + '</span>'
-        : '';
-      var reason = item.reason
-        ? '<span style="font-size:11px;color:#ef4444">' + item.reason + '</span>'
-        : '';
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed #e2e8f0;gap:8px">'
-        + '<code style="font-size:12px;color:#334155">' + item.key + '</code>'
-        + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
-        + badge + deact + reason
-        + '<button class="btn small ghost" style="font-size:11px;padding:2px 8px" onclick="navigator.clipboard.writeText(\'' + item.key + '\').then(function(){ this.textContent=\'ok\' }.bind(this))">Копировать</button>'
-        + '</div></div>';
-    }).join('') : '<div style="color:#94a3b8;text-align:center;padding:12px">Ключей нет</div>';
-    modal.style.display = 'grid';
-  });
+function submitForm(id) { document.getElementById(id).submit(); }
 
-  modal.addEventListener('click', function(e) {
-    if (e.target.hasAttribute('data-close-keys') || e.target.closest('[data-close-keys]')) {
-      modal.style.display = 'none';
-    }
-  });
-})();
+// ── Модалка сброса лицензии ──
+function openResetModal(licId) {
+  document.getElementById('resetLicForm').action = '/owner/licenses/' + licId + '/reset';
+  document.getElementById('resetReason').value = '';
+  document.getElementById('resetModal').style.display = 'grid';
+  document.getElementById('resetReason').focus();
+}
+function closeResetModal() { document.getElementById('resetModal').style.display = 'none'; }
 
-// ── Модалка истории действий ──
-(function(){
-  var modal = document.getElementById('actionsModal');
-  var list  = document.getElementById('actionsList');
+// ── Модалка блокировки ──
+function openBlockModal(licId) {
+  document.getElementById('blockLicForm').action = '/owner/licenses/' + licId + '/block';
+  document.getElementById('blockReason').value = '';
+  document.getElementById('blockModal').style.display = 'grid';
+  document.getElementById('blockReason').focus();
+}
+function closeBlockModal() { document.getElementById('blockModal').style.display = 'none'; }
 
-  var ACTION_LABELS = {
-    'issue':      ['badge new', 'Выдача'],
-    'reset':      ['badge yellow', 'Сброс'],
-    'block':      ['badge danger', 'Блокировка'],
-    'unblock':    ['badge success', 'Разблокировка'],
-    'activate':   ['badge success', 'Активация'],
-    'deactivate': ['badge orange', 'Деактивация'],
-    'transfer':   ['badge purple', 'Перенос'],
-  };
-
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-open-actions]');
-    if (!btn) return;
-    var data = JSON.parse(btn.getAttribute('data-open-actions') || '[]');
-    list.innerHTML = data.length ? data.map(function(item) {
-      var info = ACTION_LABELS[item.action] || ['badge', item.action];
-      var badge = '<span class="' + info[0] + '">' + info[1] + '</span>';
-      var reason = item.reason ? '<span style="font-size:11px;color:#64748b">' + item.reason + '</span>' : '';
-      var actor  = item.actor  ? '<span style="font-size:11px;color:#94a3b8">' + item.actor  + '</span>' : '';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed #e2e8f0">'
-        + '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;min-width:110px">' + item.at + '</span>'
-        + badge
-        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' + reason + actor + '</div>'
-        + '</div>';
-    }).join('') : '<div style="color:#94a3b8;text-align:center;padding:12px">Действий нет</div>';
-    modal.style.display = 'grid';
-  });
-
-  modal.addEventListener('click', function(e) {
-    if (e.target.hasAttribute('data-close-actions') || e.target.closest('[data-close-actions]')) {
-      modal.style.display = 'none';
-    }
-  });
-})();
+// ── Удаление лицензии ──
+function deleteLicense(licId, key) {
+  if (confirm('Удалить лицензию ' + key + '?\nОна останется в архиве.')) {
+    document.getElementById('delete-' + licId).submit();
+  }
+}
 
 // ── Resizable columns ──
 function initResizers() {
@@ -669,8 +660,8 @@ initResizers();
 // ── ESC закрывает все модалки ──
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Escape') return;
-  document.getElementById('keysModal').style.display = 'none';
-  document.getElementById('actionsModal').style.display = 'none';
+  closeResetModal();
+  closeBlockModal();
   closeResetPwModal();
 });
 </script>
