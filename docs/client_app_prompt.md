@@ -11,6 +11,7 @@
 
 **Base URL:** задаётся через конфигурацию (например, `https://licenses.example.com`)
 **Все запросы к /api/*** требуют HMAC-SHA256 подписи (см. раздел «Подпись»).
+**Ответы /api/*** могут быть зашифрованы AES-256-GCM (см. раздел «Шифрование ответов»).
 
 ---
 
@@ -215,6 +216,69 @@ def sign(method: str, path: str, body: bytes, secret: str) -> dict:
 
 `expires_at` = `"permanent"` если лицензия бессрочная.
 `logo_url` = `null` если логотип не загружен.
+
+---
+
+## Шифрование ответов AES-256-GCM
+
+Когда шифрование включено на сервере, ответы возвращаются с:
+```
+Content-Type: application/vnd.licserver.encrypted+json
+{ "iv": "<base64>", "ct": "<base64>", "nonce": "<echo X-Nonce>" }
+```
+
+**Алгоритм расшифровки:**
+```
+key   = HMAC-SHA256(API_SECRET, "enc:" + nonce)   # 32 байта
+plain = AES-256-GCM.decrypt(key, iv, ct, aad=nonce.encode("utf-8"))
+data  = json.parse(plain)
+```
+
+**Python:**
+```python
+import base64, hashlib, hmac, json
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+def decrypt_response(payload: dict, api_secret: str) -> dict:
+    nonce = payload["nonce"]
+    # Верификация: nonce должен совпадать с тем, что отправили в X-Nonce
+    key   = hmac.new(api_secret.encode(), f"enc:{nonce}".encode(), hashlib.sha256).digest()
+    iv    = base64.b64decode(payload["iv"])
+    ct    = base64.b64decode(payload["ct"])
+    # AESGCM.decrypt выбросит InvalidTag если данные подделаны или nonce не тот
+    return json.loads(AESGCM(key).decrypt(iv, ct, nonce.encode()))
+```
+
+**Dart:**
+```dart
+import 'dart:convert';
+import 'package:cryptography/cryptography.dart';  // pub: cryptography ^2.7.0
+
+Future<Map<String, dynamic>> decryptResponse(
+    Map<String, dynamic> payload, String apiSecret) async {
+  final nonce     = payload['nonce'] as String;
+  final iv        = base64.decode(payload['iv']);
+  final ct        = base64.decode(payload['ct']);
+  final keyBytes  = await Hmac.sha256().calculateMac(
+    utf8.encode('enc:$nonce'), secretKey: SecretKey(utf8.encode(apiSecret)));
+  final aesGcm    = AesGcm.with256bits();
+  final secretKey = SecretKey(keyBytes.bytes);
+  final box       = SecretBox(ct.sublist(0, ct.length - 16),
+                              nonce: iv, mac: Mac(ct.sublist(ct.length - 16)));
+  final plain     = await aesGcm.decrypt(box, secretKey: secretKey,
+                              aad: utf8.encode(nonce));
+  return jsonDecode(utf8.decode(plain));
+}
+```
+
+**Определение режима по Content-Type:**
+- `application/json` → plain JSON, парсить напрямую
+- `application/vnd.licserver.encrypted+json` → расшифровать перед парсингом
+
+**Важно:**
+- Проверьте `payload["nonce"] == sent_nonce` до расшифровки
+- `AESGCM.decrypt` / `aesGcm.decrypt` выбросит исключение если данные подделаны
+- 401-ответы (ошибка подписи) возвращаются без шифрования
 
 ---
 

@@ -4,6 +4,21 @@
 
 ---
 
+## Защита канала связи
+
+Используется двухуровневая защита:
+
+| Уровень | Механизм | Защищает от |
+|---------|----------|-------------|
+| Транспорт | **HTTPS / TLS** | Прослушивания, MITM |
+| Запрос | **HMAC-SHA256 подпись** | Подделки и replay запросов |
+| Ответ | **AES-256-GCM шифрование** | Replay ответа, реверс-инжиниринга протокола |
+
+Ответ зашифрован ключом, производным от `API_SECRET` + `X-Nonce` конкретного запроса.
+Воспроизвести старый ответ невозможно — он привязан к одноразовому nonce.
+
+---
+
 ## Аутентификация
 
 Все запросы к `/api/*` защищены **HMAC-SHA256 подписью**. Без корректной подписи сервер вернёт HTTP 401.
@@ -353,6 +368,70 @@ XXXX-XXXX-XXXX
     }
   ]
 }
+```
+
+---
+
+## Шифрование ответов (AES-256-GCM)
+
+Когда шифрование включено (`api_encryption.enabled = true` в `config/security.cfg`), все ответы `/api/*` возвращаются в зашифрованном виде.
+
+### Формат зашифрованного ответа
+
+```
+Content-Type: application/vnd.licserver.encrypted+json
+
+{
+  "iv":    "<base64, 12 байт — случайный IV>",
+  "ct":    "<base64, ciphertext + 16-байтный GCM auth tag>",
+  "nonce": "<эхо X-Nonce из запроса>"
+}
+```
+
+### Алгоритм расшифровки (клиентская сторона)
+
+```
+key   = HMAC-SHA256(API_SECRET, "enc:" + nonce)   # первые 32 байта = ключ AES-256
+plain = AES-256-GCM.decrypt(key, iv, ct, aad=nonce.encode())
+data  = JSON.parse(plain)
+```
+
+`nonce` используется как **AAD (Additional Authenticated Data)** — GCM гарантирует,
+что ciphertext нельзя использовать с другим nonce. Попытка replay провалится
+с ошибкой аутентификации тега.
+
+### Пример на Python
+
+```python
+import base64, hashlib, hmac, json
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+def decrypt_api_response(payload: dict, api_secret: str) -> dict:
+    nonce = payload["nonce"]
+    key   = hmac.new(api_secret.encode(), f"enc:{nonce}".encode(), hashlib.sha256).digest()
+    iv    = base64.b64decode(payload["iv"])
+    ct    = base64.b64decode(payload["ct"])
+    plain = AESGCM(key).decrypt(iv, ct, nonce.encode())
+    return json.loads(plain)
+```
+
+### Определение режима по Content-Type
+
+| Content-Type                                | Режим             |
+|---------------------------------------------|-------------------|
+| `application/json`                          | Plain JSON        |
+| `application/vnd.licserver.encrypted+json`  | AES-256-GCM       |
+
+### Что не шифруется
+
+- 401-ответы при отсутствии `X-Nonce` (ошибки подписи до обработки запроса)
+
+### Отключение (только для разработки)
+
+```ini
+# config/security.cfg
+[api_encryption]
+enabled = false
 ```
 
 ---

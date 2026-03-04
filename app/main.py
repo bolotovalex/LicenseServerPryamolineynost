@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
 from app.db import engine, Base
-from app.config import db_config
+from app.config import app_config, db_config, security_config
 from app.logging_setup import setup_logging
 from app.routers import public_api, auth, owner_web, org_web, feedback as feedback_router
 from app.models import License, LicenseKey
 from app.api_signing import APISignatureError, nonce_store
+from app.response_encryption import encrypt_response, ENCRYPTED_CONTENT_TYPE
 
 # Логирование настраивается первым — до создания app
 setup_logging()
@@ -26,6 +27,38 @@ async def _signature_error_handler(request: Request, exc: APISignatureError) -> 
     return JSONResponse(
         status_code=401,
         content={"status": "error", "reason": exc.reason, "code": exc.code},
+    )
+
+
+# ── middleware: шифрование ответов /api/* ────────────────────────────────────
+
+@app.middleware("http")
+async def encrypt_api_responses(request: Request, call_next):
+    """
+    Шифрует ответы /api/* алгоритмом AES-256-GCM, если включено в конфиге.
+
+    Ключ шифрования производится из API_SECRET + X-Nonce запроса — каждый
+    ответ уникален и не может быть переиспользован (replay-защита).
+    Ответы на ошибки подписи (401 без X-Nonce) передаются без шифрования.
+    """
+    response = await call_next(request)
+
+    if not request.url.path.startswith("/api/"):
+        return response
+    if not security_config.api_encryption_enabled:
+        return response
+
+    nonce = request.headers.get("X-Nonce")
+    if not nonce:
+        return response
+
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    encrypted = encrypt_response(body, app_config.api_secret, nonce)
+
+    return JSONResponse(
+        content=encrypted,
+        status_code=response.status_code,
+        media_type=ENCRYPTED_CONTENT_TYPE,
     )
 
 

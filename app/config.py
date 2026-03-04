@@ -190,6 +190,9 @@ _sec_cfg = _load(
             "enabled": "true",
             "timestamp_tolerance_seconds": "30",
         },
+        "api_encryption": {
+            "enabled": "false",
+        },
     },
 )
 
@@ -241,6 +244,11 @@ class _SecurityConfig:
     @property
     def timestamp_tolerance_seconds(self) -> int:
         return _sec_cfg.getint("api_signing", "timestamp_tolerance_seconds", fallback=30)
+
+    # api_encryption
+    @property
+    def api_encryption_enabled(self) -> bool:
+        return _sec_cfg.getboolean("api_encryption", "enabled", fallback=False)
 
 
 security_config = _SecurityConfig()
