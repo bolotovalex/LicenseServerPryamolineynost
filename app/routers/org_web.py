@@ -211,13 +211,14 @@ async def org_license_reset(
 
     new_key = generate_license_key()
     db.add(LicenseKey(license_id=lic.id, key=new_key, is_active=True))
-    lic.key          = new_key
-    lic.status       = "not_activated"
-    lic.device_id    = None
-    lic.device_name  = None
-    lic.device_comment = None
-    lic.activated_at = None
-    lic.version      = (lic.version or 0) + 1
+    lic.key               = new_key
+    lic.status            = "not_activated"
+    lic.device_id         = None
+    lic.device_name       = None
+    lic.device_comment    = None
+    lic.activation_payload = None
+    lic.activated_at      = None
+    lic.version           = (lic.version or 0) + 1
 
     db.add(LicenseAction(
         license_id=lic.id,
