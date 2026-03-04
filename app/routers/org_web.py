@@ -172,6 +172,74 @@ async def org_license_edit(
     return _flash("/org/dashboard", "Описание не изменено", "warn")
 
 
+@router.post("/licenses/{license_id}/reset")
+async def org_license_reset(
+    request:    Request,
+    license_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    org, redir = await _require_org(request, db)
+    if redir:
+        return redir
+
+    lic = (await db.execute(
+        select(License).where(
+            License.id == license_id,
+            License.client_id == org.id,
+        )
+    )).scalar_one_or_none()
+
+    if not lic:
+        return _flash("/org/dashboard", "Лицензия не найдена", "error")
+
+    now = dt.datetime.now(dt.UTC)
+    st  = lic.computed_status(now)
+    if st not in ("released", "not_activated"):
+        return _flash("/org/dashboard", "Сброс доступен только для деактивированных и неактивированных лицензий", "error")
+
+    # Деактивировать текущий активный ключ в истории
+    active_key = (await db.execute(
+        select(LicenseKey).where(
+            LicenseKey.license_id == lic.id,
+            LicenseKey.is_active == True,
+        )
+    )).scalar_one_or_none()
+    if active_key:
+        active_key.is_active = False
+        active_key.deactivated_at = now
+        active_key.reason = "reset by org"
+
+    new_key = generate_license_key()
+    db.add(LicenseKey(license_id=lic.id, key=new_key, is_active=True))
+    lic.key          = new_key
+    lic.status       = "not_activated"
+    lic.device_id    = None
+    lic.device_name  = None
+    lic.device_comment = None
+    lic.activated_at = None
+    lic.version      = (lic.version or 0) + 1
+
+    db.add(LicenseAction(
+        license_id=lic.id,
+        action="reset",
+        actor=org.login,
+        reason="reset by org",
+    ))
+    await log_action(
+        db=db,
+        actor_type="org",
+        action="license_reset",
+        actor_id=org.id,
+        actor_login=org.login,
+        entity_type="license",
+        entity_id=lic.id,
+        success=True,
+        request=request,
+    )
+    await db.commit()
+    return _flash("/org/dashboard", "Ключ сброшен — скопируйте новый ключ для активации")
+
+
 @router.get("/licenses/{license_id}/history")
 async def org_license_history(
     request:    Request,

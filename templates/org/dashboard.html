@@ -150,6 +150,15 @@
                     onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}')"
                     title="Изменить описание">Изм.</button>
 
+            <!-- Сбросить ключ (только released / not_activated) -->
+            {% if st in ('released', 'not_activated') %}
+              <form method="post" action="/org/licenses/{{ lic.id }}/reset"
+                    style="display:inline"
+                    onsubmit="return confirm('Сгенерировать новый ключ?\nТекущий ключ станет недействительным.')">
+                <button class="btn small amber">Сбросить ключ</button>
+              </form>
+            {% endif %}
+
             <!-- История действий -->
             <button type="button" class="btn small ghost"
                     onclick="openHistoryModal({{ lic.id }})"
