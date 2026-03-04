@@ -124,7 +124,7 @@
         <button type="button" class="btn small amber" onclick="openResetPwModal()">Сбросить пароль</button>
 
         <form method="post" action="/owner/clients/{{ client.id }}/delete" style="display:contents"
-              onsubmit="return confirm('Удалить клиента «{{ client.org_name }}» и все его лицензии? Восстановить нельзя.')">
+              onsubmit="return confirm('Удалить клиента «{{ client.org_name }}»?\nОрганизацию можно восстановить из архива.')">
           <button class="btn small red">Удалить клиента</button>
         </form>
       </div>

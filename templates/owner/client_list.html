@@ -4,9 +4,15 @@
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
   <h1 style="margin:0">Клиенты</h1>
+  {% if show_deleted %}
+    <a href="/owner/clients" class="btn small ghost">← Активные</a>
+  {% else %}
+    <a href="/owner/clients?show_deleted=1" class="btn small ghost" style="color:#94a3b8">Архив удалённых</a>
+  {% endif %}
 </div>
 
-<!-- Форма создания -->
+<!-- Форма создания (только в режиме активных) -->
+{% if not show_deleted %}
 <div class="section">
   <details id="create-panel">
     <summary style="cursor:pointer;font-weight:600;font-size:14px;color:#1f64e2;list-style:none;display:flex;align-items:center;gap:8px">
@@ -58,10 +64,46 @@
     </form>
   </details>
 </div>
+{% endif %}
 
 <!-- Таблица клиентов -->
 <div class="section" style="padding:0;overflow:hidden">
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    {% if show_deleted %}
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Организация</th>
+          <th>Логин</th>
+          <th>Email</th>
+          <th>Удалён</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in clients %}
+        <tr style="color:#94a3b8;background:#fafafa">
+          <td style="font-size:12px">{{ c.id }}</td>
+          <td><strong style="color:#475569">{{ c.org_name }}</strong></td>
+          <td style="font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
+          <td style="font-size:12px">{{ c.contact_email or '—' }}</td>
+          <td style="white-space:nowrap;font-size:12px;color:#ef4444">
+            {{ c.deleted_at.strftime('%Y-%m-%d %H:%M') if c.deleted_at else '—' }}
+          </td>
+          <td class="right">
+            <form method="post" action="/owner/clients/{{ c.id }}/restore"
+                  onsubmit="return confirm('Восстановить организацию «{{ c.org_name }}»?')">
+              <button class="btn small green">Восстановить</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:24px">Удалённых клиентов нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
     <table class="table-compact">
       <thead>
         <tr>
@@ -96,6 +138,7 @@
       {% endfor %}
       </tbody>
     </table>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

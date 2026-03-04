@@ -97,12 +97,19 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_session)):
 # ── clients ───────────────────────────────────────────────────────────────────
 
 @router.get("/clients", response_class=HTMLResponse)
-async def clients_list(request: Request, db: AsyncSession = Depends(get_session)):
-    owner   = await require_owner(request, db)
-    clients = (await db.execute(
-        select(Client).order_by(Client.id).options(selectinload(Client.licenses))
-    )).scalars().all()
-    ctx     = await _ctx(request, owner, db, clients=clients)
+async def clients_list(
+    request:      Request,
+    db:           AsyncSession = Depends(get_session),
+    show_deleted: bool = False,
+):
+    owner = await require_owner(request, db)
+    q = select(Client).options(selectinload(Client.licenses)).order_by(Client.id)
+    if show_deleted:
+        q = q.where(Client.deleted_at.isnot(None))
+    else:
+        q = q.where(Client.deleted_at.is_(None))
+    clients = (await db.execute(q)).scalars().all()
+    ctx = await _ctx(request, owner, db, clients=clients, show_deleted=show_deleted)
     return templates.TemplateResponse("owner/client_list.html", ctx)
 
 
@@ -411,23 +418,48 @@ async def client_activate(request: Request, client_id: int, db: AsyncSession = D
 
 @router.post("/clients/{client_id}/delete")
 async def client_delete(request: Request, client_id: int, db: AsyncSession = Depends(get_session)):
-    await require_owner(request, db)
+    owner = await require_owner(request, db)
     client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one_or_none()
-    if not client:
+    if not client or client.deleted_at is not None:
         raise HTTPException(404)
 
-    license_ids = (await db.execute(
-        select(License.id).where(License.client_id == client_id)
-    )).scalars().all()
-
-    if license_ids:
-        await db.execute(delete(LicenseAction).where(LicenseAction.license_id.in_(license_ids)))
-        await db.execute(delete(LicenseKey).where(LicenseKey.license_id.in_(license_ids)))
-        await db.execute(delete(License).where(License.client_id == client_id))
-
-    await db.delete(client)
+    client.deleted_at = dt.datetime.now(dt.UTC)
+    await log_action(
+        db=db,
+        actor_type="admin",
+        action="delete_client",
+        actor_id=owner.id,
+        actor_login=owner.email,
+        entity_type="client",
+        entity_id=client.id,
+        success=True,
+        request=request,
+    )
     await db.commit()
-    return _flash("/owner/clients", "Клиент удалён")
+    return _flash("/owner/clients", f"Клиент «{client.org_name}» удалён. Можно восстановить из архива.")
+
+
+@router.post("/clients/{client_id}/restore")
+async def client_restore(request: Request, client_id: int, db: AsyncSession = Depends(get_session)):
+    owner = await require_owner(request, db)
+    client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one_or_none()
+    if not client or client.deleted_at is None:
+        raise HTTPException(404)
+
+    client.deleted_at = None
+    await log_action(
+        db=db,
+        actor_type="admin",
+        action="restore_client",
+        actor_id=owner.id,
+        actor_login=owner.email,
+        entity_type="client",
+        entity_id=client.id,
+        success=True,
+        request=request,
+    )
+    await db.commit()
+    return _flash(f"/owner/clients/{client.id}", f"Организация «{client.org_name}» восстановлена")
 
 
 @router.post("/clients/{client_id}/generate")
