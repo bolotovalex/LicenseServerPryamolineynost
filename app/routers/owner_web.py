@@ -623,6 +623,8 @@ async def license_reset(
     lic.version           = (lic.version or 1) + 1
     lic.key               = new_key
     lic.status            = "not_activated"
+    lic.is_blocked        = False
+    lic.block_reason      = None
     lic.activated_at      = None
     lic.device_id         = None
     lic.device_name       = None

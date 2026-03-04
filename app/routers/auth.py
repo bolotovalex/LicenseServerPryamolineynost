@@ -135,12 +135,15 @@ async def login_post(
     entity.last_login_at = now
     await db.commit()
 
+    from app.config import app_config
+    _secure = not app_config.debug
+
     if admin:
         resp = RedirectResponse(url="/owner/dashboard", status_code=303)
-        resp.set_cookie("owner_token", create_owner_token(admin), httponly=True, samesite="lax")
+        resp.set_cookie("owner_token", create_owner_token(admin), httponly=True, samesite="lax", secure=_secure)
     else:
         resp = RedirectResponse(url="/org/dashboard", status_code=303)
-        resp.set_cookie("org_token", create_org_token(client), httponly=True, samesite="lax")
+        resp.set_cookie("org_token", create_org_token(client), httponly=True, samesite="lax", secure=_secure)
 
     return resp
 

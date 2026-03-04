@@ -170,6 +170,11 @@ async def org_license_edit(
     return _flash("/org/dashboard", "Описание не изменено", "warn")
 
 
+@router.get("/licenses/{license_id}/reset")
+async def org_license_reset_get(license_id: int, request: Request):
+    return _flash("/org/dashboard", "Для сброса ключа используйте кнопку в таблице лицензий", "warn")
+
+
 @router.post("/licenses/{license_id}/reset")
 async def org_license_reset(
     request:    Request,
