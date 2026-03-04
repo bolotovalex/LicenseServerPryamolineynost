@@ -16,7 +16,7 @@
 </div>
 
 <!-- Исходное сообщение -->
-<div class="org-card" style="margin-bottom:12px">
+<div class="section" style="margin-bottom:12px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:13px;font-weight:600">{{ org.org_name }}</div>
     <div style="font-size:11px;color:#94a3b8">{{ fb.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
@@ -27,7 +27,7 @@
 
 <!-- Сообщения диалога -->
 {% for msg in fb.messages %}
-<div class="org-card" style="margin-bottom:12px;
+<div class="section" style="margin-bottom:12px;
      {% if msg.sender_type == 'admin' %}border-color:#bfdbfe;background:#eff6ff{% endif %}">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:13px;font-weight:600;
@@ -45,8 +45,8 @@
 {% endfor %}
 
 <!-- Форма ответа -->
-<div class="org-card">
-  <div class="org-card-title">Ответить</div>
+<div class="section">
+  <div class="section-title">Ответить</div>
   <form method="post" action="/org/feedback/{{ fb.id }}/reply">
     <div style="margin-bottom:12px">
       <textarea name="message" class="textarea" rows="4"

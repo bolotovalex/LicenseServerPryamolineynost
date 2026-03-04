@@ -8,8 +8,8 @@
 </div>
 
 <!-- Форма нового обращения (скрыта по умолчанию) -->
-<div id="new-feedback-form" class="org-card" hidden>
-  <div class="org-card-title">Новое обращение</div>
+<div id="new-feedback-form" class="section" hidden>
+  <div class="section-title">Новое обращение</div>
   <form method="post" action="/org/feedback/new">
     <div style="display:flex;flex-direction:column;gap:14px">
       <div>
@@ -31,7 +31,7 @@
 </div>
 
 <!-- Список обращений -->
-<div class="org-card" style="padding:0;overflow:hidden">
+<div class="section" style="padding:0;overflow:hidden">
   {% if not items %}
     <div style="padding:48px;text-align:center;color:#94a3b8">
       <div style="font-size:36px;margin-bottom:12px">&#128172;</div>

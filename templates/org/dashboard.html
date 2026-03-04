@@ -33,8 +33,8 @@
 <!-- Форма выпуска лицензии (скрыта по умолчанию) -->
 {% set quota_left = org.max_keys - stats_total %}
 {% if quota_left > 0 %}
-<div id="issueForm" class="org-card" style="display:none;margin-bottom:12px">
-  <div class="org-card-title">Новая лицензия</div>
+<div id="issueForm" class="section" style="display:none;margin-bottom:12px">
+  <div class="section-title">Новая лицензия</div>
   <form method="post" action="/org/licenses/generate">
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
@@ -57,7 +57,7 @@
 {% endif %}
 
 <!-- Таблица лицензий -->
-<div class="org-card" style="padding:0;overflow:hidden">
+<div class="section" style="padding:0;overflow:hidden">
   {% if not licenses %}
     <div style="padding:40px;text-align:center;color:#94a3b8">
       Лицензий пока нет.

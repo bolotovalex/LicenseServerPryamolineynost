@@ -52,54 +52,6 @@
 
     .org-main { max-width:1100px; margin:0 auto; padding:32px 24px }
 
-    /* ── flash ────────────────────────────────────────────── */
-    .flash {
-      position:fixed; top:16px; right:16px; z-index:9999;
-      border-radius:10px; padding:12px 16px; font-size:13px;
-      line-height:1.5; max-width:480px;
-      box-shadow:0 6px 20px rgba(0,0,0,.12);
-      display:flex; align-items:flex-start; gap:10px;
-    }
-    .flash.success { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7 }
-    .flash.error   { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5 }
-    .flash.warn    { background:#fef3c7; color:#92400e; border:1px solid #fcd34d }
-    .flash-close {
-      margin-left:auto; cursor:pointer; color:inherit;
-      opacity:.5; font-size:16px; line-height:1;
-      background:none; border:none; padding:0 2px;
-    }
-
-    /* ── cards ────────────────────────────────────────────── */
-    .org-card {
-      background:#fff; border:1px solid #e2e8f0;
-      border-radius:14px; padding:20px; margin-bottom:20px;
-    }
-    .org-card-title {
-      font-size:13px; font-weight:600; color:#64748b; text-transform:uppercase;
-      letter-spacing:.04em; margin-bottom:14px;
-    }
-
-    /* ── stat chips ───────────────────────────────────────── */
-    .stat-bar {
-      display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;
-    }
-    .stat-chip {
-      background:#fff; border:1px solid #e2e8f0; border-radius:10px;
-      padding:14px 20px; display:flex; flex-direction:column; gap:4px;
-      min-width:130px;
-    }
-    .stat-chip .val { font-size:28px; font-weight:700; line-height:1 }
-    .stat-chip .lbl { font-size:12px; color:#64748b }
-    .stat-chip.green  .val { color:#059669 }
-    .stat-chip.blue   .val { color:#1f64e2 }
-    .stat-chip.gray   .val { color:#64748b }
-    .stat-chip.orange .val { color:#d97706 }
-
-    /* ── password strength ────────────────────────────────── */
-    .pw-strength { height:4px; border-radius:2px; margin-top:4px; transition:width .3s, background .3s }
-
-    /* ── badge extras ─────────────────────────────────────── */
-    .badge.gray { background:#f1f5f9; color:#64748b; border-color:#e2e8f0 }
   </style>
 </head>
 <body>
