@@ -84,7 +84,8 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_session)):
             Client.is_active,
             func.count(License.id).label("keys_count"),
         )
-        .outerjoin(License, License.client_id == Client.id)
+        .outerjoin(License, (License.client_id == Client.id) & (License.deleted_at == None))
+        .where(Client.deleted_at == None)
         .group_by(Client.id)
         .order_by(Client.id)
     )).all()

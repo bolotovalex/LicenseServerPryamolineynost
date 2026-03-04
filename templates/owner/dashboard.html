@@ -30,31 +30,30 @@
 
 <!-- Таблица клиентов -->
 <div class="section" style="padding:0;overflow:hidden">
-  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0">
     <span class="section-title" style="margin:0;border:none;padding:0">Клиенты</span>
-    <a href="/owner/clients" class="btn small">+ Новый клиент</a>
   </div>
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
     <table class="table-compact">
       <thead>
         <tr>
-          <th>ID</th>
+          <th style="width:48px">ID</th>
           <th>Организация</th>
           <th>Email</th>
-          <th class="right">Ключей</th>
-          <th class="right">Лимит</th>
-          <th>Статус</th>
+          <th style="width:70px;text-align:center">Ключей</th>
+          <th style="width:60px;text-align:center">Лимит</th>
+          <th style="width:100px;text-align:center">Статус</th>
         </tr>
       </thead>
       <tbody>
       {% for id, org_name, email, max_keys, is_active, keys_count in rows %}
         <tr style="cursor:pointer" onclick="location.href='/owner/clients/{{ id }}'">
-          <td style="color:#94a3b8;font-size:12px">{{ id }}</td>
+          <td style="color:#94a3b8;font-size:12px;text-align:center">{{ id }}</td>
           <td><strong>{{ org_name }}</strong></td>
           <td style="color:#64748b;font-size:12px">{{ email or '—' }}</td>
-          <td class="right">{{ keys_count }}</td>
-          <td class="right" style="color:#94a3b8">{{ max_keys }}</td>
-          <td>
+          <td style="text-align:center">{{ keys_count }}</td>
+          <td style="text-align:center;color:#94a3b8">{{ max_keys }}</td>
+          <td style="text-align:center">
             {% if is_active %}
               <span class="badge success">активен</span>
             {% else %}
