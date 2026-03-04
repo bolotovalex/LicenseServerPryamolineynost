@@ -4,21 +4,23 @@
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
   <h1 style="margin:0">Клиенты</h1>
-  {% if show_deleted %}
-    <a href="/owner/clients" class="btn small ghost">← Активные</a>
-  {% else %}
-    <a href="/owner/clients?show_deleted=1" class="btn small ghost" style="color:#94a3b8">Архив удалённых</a>
-  {% endif %}
+  <div style="display:flex;gap:8px;align-items:center">
+    {% if not show_deleted %}
+      <button type="button" class="btn small" onclick="toggleCreatePanel()">+ Новый клиент</button>
+    {% endif %}
+    {% if show_deleted %}
+      <a href="/owner/clients" class="btn small ghost">← Активные</a>
+    {% else %}
+      <a href="/owner/clients?show_deleted=1" class="btn small ghost" style="color:#94a3b8">Архив удалённых</a>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Форма создания (только в режиме активных) -->
 {% if not show_deleted %}
-<div class="section">
-  <details id="create-panel">
-    <summary style="cursor:pointer;font-weight:600;font-size:14px;color:#1f64e2;list-style:none;display:flex;align-items:center;gap:8px">
-      <span id="create-arrow" style="font-size:18px;transition:transform .2s">&#43;</span>
-      Создать нового клиента
-    </summary>
+<div class="section" id="create-panel" style="display:none">
+  <details id="create-details" open>
+    <summary style="display:none"></summary>
     <form method="post" action="/owner/clients/new" style="margin-top:16px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
 
@@ -65,6 +67,7 @@
   </details>
 </div>
 {% endif %}
+
 
 <!-- Таблица клиентов -->
 <div class="section" style="padding:0;overflow:hidden">
@@ -172,10 +175,16 @@ function updateStrength(input) {
 var pwInput = document.getElementById('cl-password');
 if (pwInput) pwInput.addEventListener('input', function(){ updateStrength(this); });
 
+function toggleCreatePanel() {
+  var p = document.getElementById('create-panel');
+  if (p) p.style.display = p.style.display === 'none' ? '' : 'none';
+}
+
 // Раскрыть форму при ошибке (если msg = error)
 var params = new URLSearchParams(location.search);
 if (params.get('msg_type') === 'error') {
-  document.getElementById('create-panel').open = true;
+  var p = document.getElementById('create-panel');
+  if (p) p.style.display = '';
 }
 </script>
 {% endblock %}
