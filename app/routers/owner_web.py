@@ -192,28 +192,36 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
     available   = max(0, client.max_keys - total_keys)
     max_allowed = min(50, available)
 
-    # Лишние лицензии (если max_keys снижен)
-    excess_licenses: list = []
-    if total_keys > client.max_keys:
-        excess_count   = total_keys - client.max_keys
-        non_blocked    = sorted([l for l in licenses if not l.is_blocked], key=lambda x: x.issued_at)
-        excess_licenses = non_blocked[:excess_count]
-
     # Блок 4: журнал (LicenseAction + AuditLog)
     license_ids = [l.id for l in licenses]
     log_entries: list[dict] = []
     lic_key: dict = {}
+    actions_payloads: dict = {}
 
     if license_ids:
         actions = (await db.execute(
             select(LicenseAction)
             .where(LicenseAction.license_id.in_(license_ids))
             .order_by(desc(LicenseAction.at))
-            .limit(50)
+            .limit(200)
         )).scalars().all()
 
         lic_desc = {l.id: l.description for l in licenses}
         lic_key  = {l.id: l.key          for l in licenses}
+
+        # История действий для модалки (группируем по license_id)
+        for a in actions:
+            lid = a.license_id
+            if lid not in actions_payloads:
+                actions_payloads[lid] = []
+            if len(actions_payloads[lid]) < 20:
+                actions_payloads[lid].append({
+                    "action": a.action,
+                    "at":     a.at.strftime('%Y-%m-%d %H:%M'),
+                    "reason": a.reason or "",
+                    "actor":  a.actor or "",
+                })
+
         for a in actions:
             log_entries.append({
                 "at":         a.at,
@@ -267,10 +275,10 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         client=client,
         licenses=licenses,
         keys_payloads=keys_payloads,
+        actions_payloads=actions_payloads,
         total_keys=total_keys,
         available=available,
         max_allowed=max_allowed,
-        excess_licenses=excess_licenses,
         log_entries=log_entries,
         creator=creator,
         default_expires=default_expires,

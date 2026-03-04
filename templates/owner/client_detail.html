@@ -106,46 +106,21 @@
 </div>
 
 
-{% if excess_licenses %}
-<!-- ═══════════════ ПРЕДУПРЕЖДЕНИЕ: ПРЕВЫШЕНИЕ КВОТЫ ═══════════════ -->
-<div class="section" style="border-color:#fca5a5;background:#fef2f2;padding:16px 20px">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-    <span style="font-size:18px">&#9888;</span>
-    <strong style="color:#991b1b">
-      Превышение квоты: {{ total_keys }} лиц. при лимите {{ client.max_keys }}
-      — необходимо заблокировать {{ excess_licenses|length }} шт.
-    </strong>
-  </div>
-  <div style="display:flex;flex-direction:column;gap:8px">
-    {% for lic in excess_licenses %}
-    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #fecaca;
-                border-radius:8px;padding:10px 14px;flex-wrap:wrap">
-      <code style="font-size:12px;color:#334155;flex:0 0 auto">{{ lic.key }}</code>
-      <span style="font-size:12px;color:#64748b;flex:1">{{ lic.description or '—' }}</span>
-      <form method="post" action="/owner/licenses/{{ lic.id }}/block" style="flex:0 0 auto">
-        <input type="hidden" name="reason" value="превышение квоты лицензий"/>
-        <button class="btn small red"
-                onclick="return confirm('Заблокировать лицензию {{ lic.key[:8] }}…?')">
-          Заблокировать
-        </button>
-      </form>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 <!-- ═══════════════ БЛОК 3: ТАБЛИЦА КЛЮЧЕЙ ═══════════════ -->
 <div class="section" style="padding:0;overflow:visible">
   <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
     <span class="section-title" style="margin:0;border:none;padding:0">
       Лицензии
-      <span style="font-weight:400;color:#94a3b8;font-size:12px">{{ total_keys }}/{{ client.max_keys }}</span>
+      {% if total_keys > client.max_keys %}
+        <span style="font-weight:600;color:#ef4444;font-size:12px">&#9888; {{ total_keys }}/{{ client.max_keys }}</span>
+      {% else %}
+        <span style="font-weight:400;color:#94a3b8;font-size:12px">{{ total_keys }}/{{ client.max_keys }}</span>
+      {% endif %}
     </span>
     {% if max_allowed > 0 %}
       <button type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
     {% else %}
-      <span style="font-size:12px;color:#ef4444">Квота исчерпана — увеличьте лимит в блоке информации</span>
+      <button type="button" class="btn small" disabled title="Квота исчерпана">+ Выпустить лицензию</button>
     {% endif %}
   </div>
   {% if max_allowed > 0 %}
@@ -153,8 +128,8 @@
     <form method="post" action="/owner/clients/{{ client.id }}/generate">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
         <div>
-          <label>Описание *</label>
-          <input name="description" class="input" placeholder="Назначение лицензии" required/>
+          <label>Описание</label>
+          <input name="description" class="input" placeholder="автоматическая генерация"/>
         </div>
         <div>
           <label>Количество (макс. {{ max_allowed }})</label>
@@ -177,7 +152,7 @@
     <div style="padding:32px;text-align:center;color:#94a3b8">Лицензий нет</div>
   {% else %}
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
-    <table class="table-compact">
+    <table class="table-compact resizable-table">
       <colgroup>
         <col style="width:42px">
         <col style="width:130px">
@@ -221,20 +196,29 @@
 
           <!-- Статус -->
           <td style="text-align:center">
-            {% if lic.is_blocked %}
-              <span class="badge danger" title="{{ lic.block_reason or '' }}">blocked</span>
-            {% elif is_expired %}
-              <span class="badge gray">expired</span>
-            {% elif lic.activated_at %}
-              <span class="badge success">activated</span>
+            {% set st = lic.computed_status(now) %}
+            {% if st == 'blocked' %}
+              <span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
+            {% elif st == 'expired' %}
+              <span class="badge gray">Истёк</span>
+            {% elif st == 'activated' %}
+              <span class="badge success">Активирован</span>
+            {% elif st == 'released' %}
+              <span class="badge warn">Освобождён</span>
             {% else %}
-              <span class="badge new">new</span>
+              <span class="badge new">Не активирован</span>
             {% endif %}
           </td>
 
           <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
               style="font-size:11px;text-align:center">
-            {{ lic.device_id or '—' }}
+            {% if lic.device_name %}
+              {{ lic.device_name }}
+            {% elif lic.device_id %}
+              {{ lic.device_id[:20] }}{% if lic.device_id|length > 20 %}…{% endif %}
+            {% else %}
+              —
+            {% endif %}
           </td>
           <td style="white-space:nowrap;font-size:12px;text-align:center"
               title="{{ lic.issued_at.isoformat(sep=' ', timespec='seconds') if lic.issued_at else '' }}">
@@ -264,6 +248,11 @@
             <button type="button" class="btn small ghost"
                     data-open-keys="{{ (keys_payloads or {})[lic.id] | tojson }}"
                     title="История ключей">&#128214;</button>
+
+            <!-- История действий -->
+            <button type="button" class="btn small ghost"
+                    data-open-actions="{{ (actions_payloads or {})[lic.id] | tojson }}"
+                    title="История действий">&#128221;</button>
 
             <!-- QR-код -->
             <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode"
@@ -324,7 +313,7 @@
     <div style="padding:24px;text-align:center;color:#94a3b8">Записей нет</div>
   {% else %}
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
-    <table class="table-compact">
+    <table class="table-compact resizable-table">
       <colgroup>
         <col style="width:130px">
         <col style="width:48px">
@@ -428,16 +417,32 @@
 
 <!-- ═══════════════ МОДАЛКА ИСТОРИИ КЛЮЧЕЙ ═══════════════ -->
 <div id="keysModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
-  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" data-close></div>
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" data-close-keys></div>
   <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
               min-width:500px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
     <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
       <strong>История ключей</strong>
-      <button data-close style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+      <button data-close-keys style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
     </div>
     <div id="keysList" style="padding:16px;max-height:60vh;overflow-y:auto"></div>
     <div style="padding:12px 18px;border-top:1px solid #e2e8f0;text-align:right">
-      <button class="btn small ghost" data-close>Закрыть</button>
+      <button class="btn small ghost" data-close-keys>Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ МОДАЛКА ИСТОРИИ ДЕЙСТВИЙ ═══════════════ -->
+<div id="actionsModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" data-close-actions></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              min-width:560px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+      <strong>История действий</strong>
+      <button data-close-actions style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+    </div>
+    <div id="actionsList" style="padding:16px;max-height:60vh;overflow-y:auto"></div>
+    <div style="padding:12px 18px;border-top:1px solid #e2e8f0;text-align:right">
+      <button class="btn small ghost" data-close-actions>Закрыть</button>
     </div>
   </div>
 </div>
@@ -503,7 +508,7 @@ function copyKey(key, btn) {
   });
 }
 
-// ── Модалка истории ──
+// ── Модалка истории ключей ──
 (function(){
   var modal = document.getElementById('keysModal');
   var list  = document.getElementById('keysList');
@@ -533,16 +538,74 @@ function copyKey(key, btn) {
   });
 
   modal.addEventListener('click', function(e) {
-    if (e.target.hasAttribute('data-close') || e.target.closest('[data-close]')) {
+    if (e.target.hasAttribute('data-close-keys') || e.target.closest('[data-close-keys]')) {
       modal.style.display = 'none';
     }
   });
+})();
 
-  document.addEventListener('keydown', function(e) {
-    if (e.key !== 'Escape') return;
-    modal.style.display = 'none';
-    closeResetPwModal();
+// ── Модалка истории действий ──
+(function(){
+  var modal = document.getElementById('actionsModal');
+  var list  = document.getElementById('actionsList');
+
+  var ACTION_LABELS = {
+    'issue':      ['badge new', 'Выдача'],
+    'reset':      ['badge yellow', 'Сброс'],
+    'block':      ['badge danger', 'Блокировка'],
+    'unblock':    ['badge success', 'Разблокировка'],
+    'activate':   ['badge success', 'Активация'],
+    'deactivate': ['badge orange', 'Деактивация'],
+    'transfer':   ['badge purple', 'Перенос'],
+  };
+
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-open-actions]');
+    if (!btn) return;
+    var data = JSON.parse(btn.getAttribute('data-open-actions') || '[]');
+    list.innerHTML = data.length ? data.map(function(item) {
+      var info = ACTION_LABELS[item.action] || ['badge', item.action];
+      var badge = '<span class="' + info[0] + '">' + info[1] + '</span>';
+      var reason = item.reason ? '<span style="font-size:11px;color:#64748b">' + item.reason + '</span>' : '';
+      var actor  = item.actor  ? '<span style="font-size:11px;color:#94a3b8">' + item.actor  + '</span>' : '';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed #e2e8f0">'
+        + '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;min-width:110px">' + item.at + '</span>'
+        + badge
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' + reason + actor + '</div>'
+        + '</div>';
+    }).join('') : '<div style="color:#94a3b8;text-align:center;padding:12px">Действий нет</div>';
+    modal.style.display = 'grid';
+  });
+
+  modal.addEventListener('click', function(e) {
+    if (e.target.hasAttribute('data-close-actions') || e.target.closest('[data-close-actions]')) {
+      modal.style.display = 'none';
+    }
   });
 })();
+
+// ── Resizable columns ──
+document.querySelectorAll('.resizable-table th').forEach(function(th) {
+  th.style.position = 'relative';
+  var grip = document.createElement('div');
+  grip.style.cssText = 'position:absolute;right:0;top:0;width:5px;height:100%;cursor:col-resize;user-select:none;z-index:1';
+  grip.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    var startX = e.clientX, startW = th.offsetWidth;
+    function onMove(ev) { th.style.width = Math.max(40, startW + ev.clientX - startX) + 'px'; }
+    function onUp()   { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+  th.appendChild(grip);
+});
+
+// ── ESC закрывает все модалки ──
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  document.getElementById('keysModal').style.display = 'none';
+  document.getElementById('actionsModal').style.display = 'none';
+  closeResetPwModal();
+});
 </script>
 {% endblock %}
