@@ -1,147 +1,578 @@
-# Prompt для Claude Code + план реализации
+# Промпт для Claude Code — следующая итерация LicenseServerPryamolineynost
 
-## 1) Готовый prompt для Claude Code
+## Инструкции для Claude Code
 
-```md
-Ты работаешь в репозитории FastAPI `LicenseServerPryamolineynost`.
-Нужно реализовать изменения по backend + frontend + API, без поломки текущей логики.
+```
+Ты работаешь в репозитории LicenseServerPryamolineynost — FastAPI-сервер лицензирования ПО.
+Стек: Python 3.13, FastAPI, SQLAlchemy async (aiosqlite), Jinja2, static/styles.css.
 
-Ограничения:
-- Делай изменения поэтапно и коммить по функциональным блокам.
-- Не делай destructive-команд.
-- Сохраняй существующую архитектуру (`app/routers`, `app/models.py`, Jinja templates).
-- Для БД используй startup-миграции в `app/main.py` (SQLite совместимо).
-- Добавь выбор типа БД через конфиг/переменные окружения: `sqlite`, `postgres`, `mariadb` (`mysql` как алиас).
-- После каждого этапа запуск smoke-проверок и фикс regressions.
-
-Обязательные задачи:
-1. UI owner dashboard: убрать кнопку «Все клиенты».
-2. Страница owner backup привести к общему стилю owner.
-3. Feedback: добавить диалог «вопрос-ответ» внутри системы (не только email), дублировать ответ по email, хранить ответы в БД.
-4. Ввести явные статусы ключей: `not_activated`, `blocked`, `released`, `activated`, `expired`.
-5. Клиент (org) должен видеть диалог feedback и отвечать.
-6. Логин: вход для org по `login` ИЛИ `contact_email` (owner по email как сейчас).
-7. Обновить placeholder-примеры в формах.
-8. В кабинете org добавить управление лицензиями: создание, изменение, отзыв, повторная активация; показывать `device_id`; нельзя менять `max_keys`.
-9. Owner может менять `max_keys`; при уменьшении лимита дать инструмент блокировки «лишних» ключей.
-10. Привести проект к единому оформлению (owner/org/public).
-11. В таблицах клиентов убрать подпись/колонку «Открыть» (оставить переход по клику или кнопку без текста).
-12. Изменить формат ключа на `xxxx-xxxx-xxxx` (12 символов, uppercase A-Z0-9).
-13. Исправить меню «три точки» у ключа (z-index/overflow, меню скравается за элементами блока(не видно)).
-14. Убрать блок «исчерпание квоты»; добавить кнопку «Генерация лицензий» в заголовок таблицы лицензий справа. Если лицензий = макс лицензий, то кнопка не активна.
-15. В карточке клиента перенести `логин/создан/email` в заголовок блока «Информация о клиенте».
-16. Таблица лицензий/журнал: убрать текст «Действия», центровать заголовки и почти все значения (кроме ключа), добавить изменение ширин колонок, в журнал добавить `license_id` и окончание ключа (последние 4 символа).
-17. При удалении организации поддержать восстановление удаленных пользователей.
-
-API для мобильного клиента:
-- Реализовать сценарии активации/переактивации/переноса по device_id, деактивации, обработку blocked/expired/not found.
-- Запрос активации должен принимать: ключ, `device_id`, `device_name`, `comment`, `activated_at`, `key_version`.
-- Логировать все операции (БД + audit/logs) с IP и device_id.
-- Добавить endpoint истории ключа для owner/org.
-- При генерации ключа убрать обязательное описание, оставить «автоматическая генерация».
-
-Требуемые изменения по файлам:
-- `config/database.cfg`, `app/config.py`, `app/db.py`: выбор драйвера/DSN и инициализация движка для sqlite/postgres/mariadb(mysql).
-- `app/models.py`: статус лицензии, feedback thread/message, soft-delete сущности.
-- `app/main.py`: миграции новых колонок/таблиц.
-- `app/utils.py`: новый формат генерации ключа.
-- `app/routers/public_api.py`: новые mobile endpoints + error codes.
-- `app/routers/owner_web.py`, `app/routers/org_web.py`, `app/routers/feedback.py`, `app/routers/auth.py`: новая логика.
-- `templates/owner/*`, `templates/org/*`, `templates/feedback.html`, базовые шаблоны/стили.
-- `app/email.py`: email-дубли ответов по feedback.
-Создай файл для создания системы лицензирования в отдельном приложении(промпт для claude code) с поддержкой api данной системы.
-
-После реализации:
-- Обнови `README.md` (новые API, статусы, UX).
-- Добавь/обнови тесты (pytest) для статусов и API-сценариев.
-- Сформируй список выполненных пунктов 1–17 + API-сценарии 1–7.
+Правила:
+- Читай файлы перед правкой. Не трогай код который не нужно менять.
+- Делай изменения итерационно и коммить по функциональным блокам.
+- Не используй `datetime.utcnow()` — только `datetime.datetime.now(datetime.UTC)`.
+- Все данные только в БД (no filesystem for data).
+- Не добавляй зависимости без крайней необходимости.
+- После каждого этапа запускай smoke-тесты: `pytest tests/ -v`.
 ```
 
-## 2) Пошаговый план реализации
+---
 
-## Этап 0. Подготовка
-- Снять baseline: `git status`, smoke login owner/org, `/api/activate`, `/owner/clients/{id}`.
-- Зафиксировать текущие коды ошибок API и текущие статусы (через `is_blocked`, `activated_at`, `expires_at`).
-- Зафиксировать текущую конфигурацию БД и подготовить матрицу подключений:
-  - sqlite: `sqlite+aiosqlite:///./data/licserver.db`
-  - postgres: `postgresql+asyncpg://user:pass@host:5432/dbname`
-  - mariadb/mysql: `mysql+aiomysql://user:pass@host:3306/dbname`
+## Что уже реализовано (НЕ ПЕРЕДЕЛЫВАТЬ)
 
-## Этап 0.1. Поддержка выбора БД
-- Ввести в `config/database.cfg` параметры `db_type` и `url` (или `dsn`), где:
-  - `db_type=sqlite|postgres|mariadb|mysql`,
-  - `mysql` нормализуется в `mariadb` для внутренней логики.
-- В `app/config.py` валидировать поддерживаемые значения и строить итоговый DSN.
-- В `app/db.py` создавать `engine` с правильным async-драйвером по `db_type`.
-- Обновить `requirements.txt`: добавить async-драйверы для Postgres и MariaDB/MySQL.
-- Обновить `docker-compose.yml` примерами сервисов для Postgres и MariaDB (профили или альтернативные compose-файлы).
-- Проверить startup и базовые CRUD-операции на каждой БД.
+- Формат ключа `XXXX-XXXX-XXXX` (12 символов) — `app/utils.py`
+- Вход org по `login` ИЛИ `contact_email` — `app/routers/auth.py`
+- Модели `Feedback` + `FeedbackMessage` (диалог owner ↔ org) — `app/models.py`
+- `POST /owner/feedback/{id}/reply` и `POST /org/feedback/{id}/reply` — с email-дублированием
+- Статусы лицензии в БД: `not_activated`, `activated`, `released`, `blocked`; `expired` вычисляется по `expires_at`
+- `License.computed_status(now)` — метод уже есть
+- Эндпоинты API: `POST /api/activate`, `POST /api/deactivate`, `POST /api/transfer`, `GET /api/status`, `GET /api/history`
+- Колонка «Открыть» в списке клиентов убрана; строки кликабельны
+- `overflow:visible` на `.section` с лицензиями — three-dots меню исправлено
+- `Client.deleted_at` — soft-delete уже в модели
+- `POST /org/licenses/generate`, `POST /org/licenses/{id}/edit`, `POST /org/licenses/{id}/deactivate`
+- Кнопка генерации лицензий в заголовке таблицы (owner)
+- `LicenseAction` — журнал; колонки «Лиц.» и «Ключ» (4 символа) в `client_detail.html`
 
-## Этап 1. Данные и миграции
-- В `License` добавить `status` (строка/enum), `device_name`, `device_comment`, `released_at`, `deleted_at` (если нужно soft-delete).
-- Для feedback добавить таблицу сообщений (например `FeedbackMessage`) с направлением (`from_owner`, `from_org`), текстом, временем, флагом email-дублирования.
-- Для восстановления после удаления добавить soft-delete для `Client` и связанных org-учеток.
-- В `app/main.py` добавить SQLite-safe миграции `ALTER TABLE ... ADD COLUMN` + backfill статусов:
-  - `blocked`, `expired`, `activated`, иначе `not_activated`.
+---
 
-## Этап 2. API мобильной активации
-- Расширить `/api/activate` и/или добавить v2 endpoints:
-  - activate (новые поля устройства),
-  - deactivate/release,
-  - transfer by device.
-- Реализовать сценарии 1–6 с явными кодами ошибок:
-  - `LICENSE_NOT_FOUND`, `LICENSE_EXPIRED`, `LICENSE_BLOCKED`, `DEVICE_MISMATCH`, `LICENSE_ALREADY_ACTIVE`, `INVALID_STATUS`.
-- Во все ветки добавить audit + `LicenseAction` (IP, device_id, reason).
-- В ответах передавать: срок, версию, организацию, `license_id`, логотип (если есть).
+## Этап 1. UI-правки Owner Dashboard и Backup
 
-## Этап 3. Auth и роли
-- В `auth.py` для org искать по `Client.login == login OR Client.contact_email == login`.
-- Сохранить существующую логику owner по email.
+### 1а. Dashboard: убрать кнопку «Все клиенты»
 
-## Этап 4. Owner/Org функционал лицензий
-- `org_web.py`: дать org CRUD-подобные операции по своим ключам (генерация/редактирование/отзыв/переактивация) без права менять `max_keys`.
-- `owner_web.py`: при снижении `max_keys` показать и дать блокировку лишних ключей.
-- Добавить кнопку «История» у ключа для owner и org.
+Файл: `templates/owner/dashboard.html`
 
-## Этап 5. Feedback-диалог
-- Owner может отвечать на обращение внутри системы.
-- Org видит ответ и может писать встречный ответ.
-- Ответ сохраняется в БД и дублируется на email организации (`app/email.py` + email template).
+Найти и убрать кнопку `<a href="/owner/clients" ...>Все клиенты</a>` в шапке страницы.
+Навигация в списке клиентов — через sidebar/nav.
 
-## Этап 6. UI/UX унификация
-- Удалить «Все клиенты» в owner dashboard.
-- Убрать подпись «Открыть» в списках клиентов.
-- Привести `owner/backup` к стилю `base_owner.html`.
-- Перенести `логин/создан/email` в шапку блока информации клиента.
-- Таблицы лицензий/журнала:
-  - без подписи «Действия»,
-  - шапка по центру,
-  - данные по центру (кроме ключа),
-  - настраиваемые ширины колонок (через `<colgroup>` + CSS resize/utility classes),
-  - в журнале: `license_id` и хвост ключа (последние 4).
-- Исправить выпадающее меню `...` (overflow/z-index/positioning).
-- Удалить блок «исчерпание квоты», добавить кнопку генерации в правый край заголовка таблицы лицензий.
-- Обновить примеры заполнения полей.
+### 1б. Страница backup — единый стиль
 
-## Этап 7. Формат ключа и статусы
-- Обновить `generate_license_key()` на `XXXX-XXXX-XXXX`.
-- Проверить уникальность/коллизии и валидацию.
-- Во всех UI/API показывать новые статусы: Не активирован, заблокирован, освобожден, активирован, истек.
+Файл: `templates/owner/backup.html`
 
-## Этап 8. Тесты и документация
-- Добавить `tests/`:
-  - статусы и переходы,
-  - mobile API сценарии 1–6,
-  - auth login/email,
-  - feedback reply thread.
-- Обновить README (новые endpoints, статусы, управление ключами org).
+Привести к стилю остальных owner-страниц:
+- Унаследовать от `base_owner.html`
+- Заголовок `<h1>` и кнопки ("Создать резервную копию", "Загрузить файл") — стандартные `.btn`
+- Flash-уведомления через `_flash(url, msg, msg_type)` + redirect вместо inline-блоков
+- Таблица файлов в `.section` → `.table-wrap` → `<table class="table-compact">`
 
-## Рекомендуемая структура коммитов
-1. `feat(db): add license status model and feedback message thread`
-2. `feat(api): implement mobile activation/deactivation/transfer scenarios`
-3. `feat(auth): allow org login by login or email`
-4. `feat(org): add self-service license management and history`
-5. `feat(owner): max_keys reduction flow and overflow key blocking`
-6. `feat(feedback): add in-system replies with email duplication`
-7. `refactor(ui): unify owner/org styling and table behaviors`
-8. `chore(docs/tests): update README and add regression tests`
+---
+
+## Этап 2. Карточка клиента (Owner): структурирование и UX
+
+### 2а. Убрать блок «превышение квоты»
+
+Файл: `templates/owner/client_detail.html`
+
+- Убрать полностью блок `{% if excess_licenses %}...{% endif %}`
+- Кнопку «+ Выпустить лицензию» показывать **всегда** в заголовке таблицы лицензий (справа)
+- Если квота исчерпана (`total_keys >= client.max_keys`) — кнопка `disabled` с `title="Квота исчерпана"`
+- Если `total_keys > client.max_keys` — показать индикатор `⚠ N/M` красным рядом с заголовком
+
+Файл: `app/routers/owner_web.py`
+- В `client_detail` убрать вычисление `excess_licenses` из контекста
+- При сохранении `client_update_info` с уменьшенным `max_keys`: flash-warn «Квота уменьшена до X. Выпущено Y лицензий — заблокируйте лишние через меню ⋮»
+
+### 2б. Перенести метаданные клиента в заголовок блока
+
+Файл: `templates/owner/client_detail.html`
+
+Под основной формой редактирования (перед кнопками «Сбросить пароль», «Отключить», «Удалить»):
+
+```html
+<div class="info-row">
+  <span>Логин: <code>{{ client.login or '—' }}</code></span>
+  <span>·</span>
+  <span>Создан: {{ client.created_at.strftime('%d.%m.%Y') }}</span>
+  {% if creator %}
+  <span>·</span>
+  <span>Создал: {{ creator.email }}</span>
+  {% endif %}
+</div>
+```
+
+### 2в. Примеры заполнения полей
+
+Файл: `templates/owner/client_list.html` (форма создания клиента):
+
+| Поле | Новый placeholder |
+|---|---|
+| org_name | `АО Технопарк Сибирь` |
+| login | `technopark_sib` |
+| contact_email | `admin@technopark-sib.ru` |
+| notes | `Договор №456 от 15.01.2025` |
+
+### 2г. Таблица лицензий и журнал: выравнивание и ширины
+
+Файл: `templates/owner/client_detail.html`
+
+- Заголовок колонки действий — без текста (уже ✓)
+- Все `<th>` — `text-align:center`
+- Все колонки с данными кроме «Ключ» и «Описание» — `text-align:center`
+- Добавить JS-resizer для изменения ширины колонок через mousedown/mousemove на `<th>`:
+
+```js
+document.querySelectorAll('.resizable-table th').forEach(th => {
+  th.style.position = 'relative';
+  const grip = document.createElement('div');
+  grip.style.cssText = 'position:absolute;right:0;top:0;width:5px;height:100%;cursor:col-resize;user-select:none';
+  grip.addEventListener('mousedown', e => {
+    const startX = e.clientX, startW = th.offsetWidth;
+    const onMove = ev => th.style.width = (startW + ev.clientX - startX) + 'px';
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+  th.appendChild(grip);
+});
+```
+
+Применить к таблицам лицензий и журнала: добавить класс `resizable-table`.
+
+### 2д. Кнопка «История» у каждого ключа
+
+В таблице лицензий рядом с кнопкой «📖» (история ключей) добавить кнопку «📋 Действия»,
+открывающую модалку с `LicenseAction` по данной лицензии.
+
+В `app/routers/owner_web.py` в `client_detail` добавить в контекст:
+```python
+actions_payloads = {
+    lic.id: [
+        {"action": a.action, "at": a.at.isoformat()[:16], "actor": a.actor or "—",
+         "reason": a.reason or "", "ip": a.ip or ""}
+        for a in sorted(lic.actions, key=lambda x: x.at, reverse=True)[:20]
+    ]
+    for lic in licenses
+}
+```
+Данные передавать через `data-actions='...'` аналогично `data-open-keys`.
+
+---
+
+## Этап 3. Статусы: русские названия в UI
+
+Во **всех** шаблонах заменить английские статусы на русские с правильными `.badge`:
+
+| computed_status | Бейдж | Класс |
+|---|---|---|
+| `not_activated` | Не активирован | `.badge.new` |
+| `activated` | Активирован | `.badge.success` |
+| `released` | Освобождён | `.badge.warn` |
+| `blocked` | Заблокирован | `.badge.danger` |
+| `expired` | Истёк | `.badge.gray` |
+
+Затронутые файлы:
+- `templates/owner/client_detail.html`
+- `templates/org/dashboard.html`
+
+В ответах API — **оставить** английские коды (используются клиентскими приложениями).
+
+---
+
+## Этап 4. Кабинет организации: полное управление лицензиями
+
+### 4а. Сброс ключа (reset)
+
+Добавить в `app/routers/org_web.py`:
+
+```python
+@router.post("/licenses/{license_id}/reset")
+async def org_license_reset(license_id: int, request: Request, db: AsyncSession = Depends(get_session)):
+    org = await require_org(request, db)
+    lic = await db.get(License, license_id)
+    if not lic or lic.client_id != org.id:
+        raise HTTPException(404)
+    if lic.status == "blocked":
+        return _flash(f"/org/dashboard", "Нельзя сбросить заблокированный ключ", "error")
+    # Деактивировать активный LicenseKey
+    active_key = (await db.execute(
+        select(LicenseKey).where(LicenseKey.license_id == lic.id, LicenseKey.is_active == True)
+    )).scalar_one_or_none()
+    if active_key:
+        active_key.is_active = False
+        active_key.deactivated_at = datetime.datetime.now(datetime.UTC)
+        active_key.reason = "reset by org"
+    # Новый ключ
+    new_key = generate_license_key()
+    db.add(LicenseKey(license_id=lic.id, key=new_key, is_active=True))
+    lic.key = new_key
+    lic.status = "not_activated"
+    lic.device_id = None
+    lic.device_name = None
+    lic.device_comment = None
+    lic.activated_at = None
+    lic.version = (lic.version or 0) + 1
+    db.add(LicenseAction(license_id=lic.id, action="reset", actor=org.login, reason="reset by org"))
+    await log_action(db, actor_type="org", actor_id=org.id, actor_login=org.login,
+                     action="license_reset", entity_type="license", entity_id=lic.id, request=request)
+    await db.commit()
+    return _flash("/org/dashboard", "Ключ сброшен")
+```
+
+### 4б. История действий по лицензии (для org)
+
+Добавить в `app/routers/org_web.py`:
+
+```python
+@router.get("/licenses/{license_id}/history")
+async def org_license_history(license_id: int, request: Request, db: AsyncSession = Depends(get_session)):
+    org = await require_org(request, db)
+    lic = (await db.execute(
+        select(License).where(License.id == license_id, License.client_id == org.id)
+        .options(selectinload(License.actions))
+    )).scalar_one_or_none()
+    if not lic:
+        raise HTTPException(404)
+    actions = sorted(lic.actions, key=lambda a: a.at, reverse=True)
+    return JSONResponse([
+        {"action": a.action, "at": a.at.isoformat()[:16], "actor": a.actor or "—",
+         "reason": a.reason or "", "ip": a.ip or ""}
+        for a in actions[:30]
+    ])
+```
+
+### 4в. UI org/dashboard.html: новые кнопки и колонки
+
+В таблице лицензий добавить:
+- Колонку «Устройство»: показывать `device_name` если есть, иначе `device_id[:20]…`, в `title` — полный `device_id`
+- Кнопку **«Сбросить ключ»** (только у `released`, `not_activated`): `POST /org/licenses/{id}/reset` с `confirm()`
+- Кнопку **«История»**: fetch `GET /org/licenses/{id}/history`, показывать результат в модалке
+
+Org **не может** менять `max_keys` — не добавлять это поле в форму.
+
+---
+
+## Этап 5. Владелец: управление max_keys при превышении
+
+В `app/routers/owner_web.py` функция `client_update_info`:
+
+```python
+if new_max_keys < total_active:
+    await flash(request, f"Квота уменьшена до {new_max_keys}. Выпущено {total_active} лицензий — заблокируйте лишние через меню ⋮", "warn")
+```
+
+Блокировка лишних ключей — через стандартный three-dots dropdown в таблице лицензий (уже есть).
+Никакого специального блока `excess_licenses` — убрать полностью.
+
+---
+
+## Этап 6. Восстановление удалённых организаций
+
+### 6а. Роутер `app/routers/owner_web.py`
+
+Добавить параметр `show_deleted: bool = False` в `/clients`:
+
+```python
+@router.get("/clients")
+async def client_list(request: Request, db: AsyncSession = Depends(get_session), show_deleted: bool = False):
+    q = select(Client)
+    if show_deleted:
+        q = q.where(Client.deleted_at.isnot(None))
+    else:
+        q = q.where(Client.deleted_at.is_(None))
+    clients = (await db.execute(q)).scalars().all()
+    return templates.TemplateResponse("owner/client_list.html",
+        {"request": request, "clients": clients, "show_deleted": show_deleted, ...})
+```
+
+Добавить endpoint восстановления:
+
+```python
+@router.post("/clients/{client_id}/restore")
+async def client_restore(client_id: int, request: Request, db: AsyncSession = Depends(get_session)):
+    owner = await require_owner(request, db)
+    client = await db.get(Client, client_id)
+    if not client or client.deleted_at is None:
+        raise HTTPException(404)
+    client.deleted_at = None
+    await log_action(db, actor_type="admin", actor_id=owner.id, actor_login=owner.email,
+                     action="restore_client", entity_type="client", entity_id=client.id, request=request)
+    await db.commit()
+    return _flash(f"/owner/clients/{client.id}", "Организация восстановлена")
+```
+
+### 6б. Шаблон `templates/owner/client_list.html`
+
+Добавить:
+- Ссылку-переключатель «Показать удалённые» / «Показать активные» (`?show_deleted=1`)
+- При `show_deleted=True` — таблица с удалёнными: дата удаления + кнопка «Восстановить»
+
+---
+
+## Этап 7. Единое оформление
+
+Привести **все** шаблоны к единому стилю `static/styles.css`:
+
+**Правила:**
+- Все карточки — класс `.section`
+- Все таблицы — `.table-wrap` → `<table class="table-compact">`
+- `base_org.html` — те же CSS-переменные и классы что и `base_owner.html`
+- Бейджи — только классы `.badge .success/.danger/.warn/.new/.gray`
+- Кнопки — только `.btn`, `.btn.small`, `.btn.ghost`, `.btn.green`, `.btn.amber`, `.btn.red`
+- Flash — только через `?msg=...&msg_type=...`
+- Нет inline `style="background-color:..."` — только CSS-классы
+
+Добавить в `static/styles.css` если не хватает org-специфики:
+```css
+.org-nav { /* аналогично .owner-nav */ }
+```
+
+---
+
+## Этап 8. Публичный API — мобильные сценарии
+
+Файл: `app/routers/public_api.py`
+
+### Текущие эндпоинты:
+- `POST /api/activate` — активация ключа
+- `POST /api/deactivate` — деактивация (статус → released)
+- `POST /api/transfer` — перенос (смена ключа)
+- `GET /api/status?key=...` — статус ключа
+- `GET /api/history?key=...` — история действий по ключу
+
+---
+
+### Сценарий 1: Первичная активация нового ключа
+
+`POST /api/activate` принимает:
+```json
+{
+  "key": "ABCD-EFGH-IJKL",
+  "device_id": "uuid-устройства",
+  "device_name": "Смартфон Андрей",
+  "comment": "Рабочее устройство",
+  "key_version": 1
+}
+```
+
+Логика:
+1. Найти `License` по `key`; если нет → 404 `LICENSE_NOT_FOUND`
+2. Если `status == "blocked"` → 403 `LICENSE_BLOCKED` + `reason: block_reason`
+3. Если `expires_at` прошёл → 403 `LICENSE_EXPIRED`
+4. Если `status == "not_activated"` → активировать:
+   - `status = "activated"`, `device_id`, `device_name`, `device_comment = comment`, `activated_at = now()`
+   - Создать `LicenseAction(action="activate", actor=device_id, ip=ip)`
+   - `await log_action(...)`
+   - `await db.commit()`
+   - Вернуть 200 с данными (см. ниже)
+
+Ответ 200:
+```json
+{
+  "status": "activated",
+  "license_id": 42,
+  "organization": "АО Технопарк Сибирь",
+  "description": "Рабочее место",
+  "activated_at": "2026-03-01T10:00:00",
+  "expires_at": "2027-03-01T00:00:00",
+  "version": 1,
+  "device_id": "uuid-устройства",
+  "device_name": "Смартфон Андрей",
+  "logo_url": "/owner/clients/5/logo"
+}
+```
+
+`logo_url` — только если у клиента есть `logo_data`, иначе `null`.
+
+---
+
+### Сценарий 2: Повторная активация того же устройства (переустановка приложения)
+
+В `POST /api/activate` ПОСЛЕ проверки blocked/expired:
+
+```python
+if lic.status == "activated" and lic.device_id == data.device_id:
+    # Устройство то же — подтвердить активацию без изменений
+    return _ok_response(lic, client)
+```
+
+Обновить `device_name` и `comment` если переданы (пользователь мог изменить).
+
+---
+
+### Сценарий 3: Устройство меняет ключ (старый ключ освобождается)
+
+В `POST /api/activate` ПЕРЕД основной проверкой нового ключа:
+
+```python
+# Проверяем: device_id уже привязан к другой активированной лицензии?
+old_lic = (await db.execute(
+    select(License).where(
+        License.device_id == data.device_id,
+        License.status == "activated",
+        License.id != lic.id,
+    )
+)).scalar_one_or_none()
+
+if old_lic:
+    # Освобождаем старый ключ — device_id отвязывается, статус → released
+    old_lic.status = "released"
+    old_lic.activated_at = None
+    old_lic.device_id = None
+    old_lic.device_name = None
+    old_lic.device_comment = None
+    db.add(LicenseAction(
+        license_id=old_lic.id,
+        action="deactivate",
+        reason=f"device switched to new key",
+        actor=data.device_id,
+        ip=_get_ip(request),
+    ))
+    await log_action(db=db, actor_type="api_client", action="device_key_swap",
+                     actor_login=data.device_id, entity_type="license", entity_id=old_lic.id,
+                     details={"old_key": old_lic.key[:8], "new_key": data.key[:8]},
+                     success=True, request=request)
+    # НЕ commit — продолжаем в той же транзакции
+```
+
+После — стандартная активация нового ключа (Сценарий 1).
+
+---
+
+### Сценарий 4: Ошибки активации — логирование в БД и журнал
+
+Добавить helper:
+```python
+async def _log_api_error(db, lic_id, action, code, device_id, ip, request):
+    if lic_id:
+        db.add(LicenseAction(
+            license_id=lic_id, action=action,
+            reason=code, actor=device_id or "unknown", ip=ip,
+        ))
+    await log_action(
+        db=db, actor_type="api_client", action=f"error_{action}",
+        actor_login=device_id or "unknown", entity_type="license", entity_id=lic_id,
+        details={"code": code, "device_id": device_id, "ip": ip},
+        success=False, request=request,
+    )
+    await db.commit()
+```
+
+Вызывать при:
+- `LICENSE_NOT_FOUND` — только AuditLog (нет license_id)
+- `LICENSE_BLOCKED` — AuditLog + LicenseAction
+- `LICENSE_EXPIRED` — AuditLog + LicenseAction
+- `DEVICE_MISMATCH` — AuditLog + LicenseAction (ключ активирован на другом устройстве)
+- `VERSION_MISMATCH` — AuditLog + LicenseAction
+
+Коды ошибок и HTTP-статусы:
+| Ситуация | HTTP | code |
+|---|---|---|
+| Ключ не найден | 404 | `LICENSE_NOT_FOUND` |
+| Ключ заблокирован | 403 | `LICENSE_BLOCKED` |
+| Ключ истёк | 403 | `LICENSE_EXPIRED` |
+| Активирован на другом устройстве | 409 | `DEVICE_MISMATCH` |
+| Неверная версия ключа | 409 | `VERSION_MISMATCH` |
+
+---
+
+### Сценарий 5: Деактивация
+
+`POST /api/deactivate` — уже работает. Добавить явное поле `"code": "DEACTIVATED"` в ответ:
+
+```json
+{"status": "ok", "code": "DEACTIVATED", "message": "Лицензия освобождена"}
+```
+
+Логировать в `LicenseAction(action="deactivate", actor=device_id, ip=ip)` + `log_action`.
+
+---
+
+### Сценарий 6: Заблокированный ключ
+
+В `POST /api/activate` при `status == "blocked"`:
+```json
+{"error": "LICENSE_BLOCKED", "reason": "{{ lic.block_reason }}"}
+```
+Убедиться что `block_reason` передаётся в поле `reason`. Логировать через `_log_api_error`.
+
+---
+
+### Сценарий 7: Описание при генерации ключей
+
+- `License.description` по умолчанию `"автоматическая генерация"` (уже в модели ✓)
+- В форме выпуска лицензий у owner: поле «Описание» необязательное (убрать `required`)
+- При пустом значении — подставлять `"автоматическая генерация"` на бэкенде
+
+---
+
+## Этап 9. Тесты
+
+Файлы: `tests/test_api.py`, `tests/test_statuses.py`
+
+Добавить тесты:
+
+### test_api.py:
+```python
+async def test_activate_device_swap(client, db):
+    """Сценарий 3: устройство переключается на новый ключ — старый освобождается"""
+    # Активировать ключ1 на device_id="dev1"
+    # Попытаться активировать ключ2 с тем же device_id="dev1"
+    # Ожидаем: ключ1 → released, ключ2 → activated
+
+async def test_error_logging_blocked(client, db):
+    """Сценарий 4: ошибка логируется в LicenseAction"""
+    # Заблокировать ключ, попробовать активировать
+    # Проверить что создана запись LicenseAction с reason="LICENSE_BLOCKED"
+
+async def test_deactivate_returns_code(client, db):
+    """Сценарий 5: deactivate возвращает code=DEACTIVATED"""
+```
+
+### test_statuses.py:
+```python
+async def test_org_reset_license(client, db):
+    """Org сбрасывает ключ: старый → is_active=False, новый ключ создан, статус not_activated"""
+
+async def test_restore_deleted_client(client, db):
+    """Восстановление soft-deleted клиента"""
+```
+
+---
+
+## Дополнительные требования
+
+### Права на удаление лицензии
+Удаление лицензии (`POST /owner/licenses/{id}/delete`) доступно **только** пользователям с ролью
+`admin` или `superadmin`. Обычный владелец (owner без роли) не должен видеть кнопку и получать 403 при прямом запросе.
+
+Реализация:
+- `app/routers/owner_web.py`, endpoint `license_soft_delete`:
+  добавить проверку `if owner.role not in ("admin", "superadmin"): raise HTTPException(403)`
+- `templates/owner/client_detail.html`, dropdown ⋮ у лицензии:
+  скрыть секцию УДАЛЕНИЕ если роль не `admin`/`superadmin`:
+  `{% if admin.role in ('admin', 'superadmin') %} ... {% endif %}`
+
+---
+
+## Итоговый чеклист
+
+### Python:
+- [ ] `app/routers/owner_web.py` — убрать excess_licenses, добавить actions_payloads, restore endpoint, quota indicator
+- [ ] `app/routers/org_web.py` — POST `/licenses/{id}/reset`, GET `/licenses/{id}/history`
+- [ ] `app/routers/public_api.py` — Сценарий 3 (device swap), `_log_api_error` helper, `logo_url` в ответе, `code: "DEACTIVATED"`
+
+### Шаблоны:
+- [ ] `templates/owner/dashboard.html` — убрать кнопку «Все клиенты»
+- [ ] `templates/owner/backup.html` — единый стиль base_owner.html
+- [ ] `templates/owner/client_detail.html` — убрать excess_licenses, info-row, actions_payloads модалка, resizable columns, disable кнопки при квоте
+- [ ] `templates/owner/client_list.html` — новые placeholder, переключатель «Показать удалённых»
+- [ ] `templates/org/dashboard.html` — русские статусы, кнопка Сбросить, кнопка История, колонка Устройство с device_id в title
+- [ ] Все шаблоны — русские названия статусов
+
+### CSS:
+- [ ] `static/styles.css` — унифицировать org- и owner-стили, org-nav
+
+### Тесты:
+- [ ] `tests/test_api.py` — Сценарий 3 (device swap), логирование ошибок, DEACTIVATED code
+- [ ] `tests/test_statuses.py` — org reset, restore client
+
+---
+
+## Рекомендуемые коммиты
+
+1. `refactor(owner): remove excess_licenses block, add quota indicator and actions modal`
+2. `refactor(owner): restructure client info card, resizable columns, restore endpoint`
+3. `feat(org): add license reset and history endpoints`
+4. `feat(api): device swap scenario, error logging, logo_url in response`
+5. `refactor(ui): unify owner/org styles, Russian status badges`
+6. `refactor(owner): backup page to common style, dashboard cleanup`
+7. `test: add device swap, error logging, org reset, client restore tests`
