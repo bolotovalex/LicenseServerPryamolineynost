@@ -7,7 +7,8 @@ import datetime as dt
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -169,6 +170,37 @@ async def org_license_edit(
         await db.commit()
         return _flash("/org/dashboard", "Описание обновлено")
     return _flash("/org/dashboard", "Описание не изменено", "warn")
+
+
+@router.get("/licenses/{license_id}/history")
+async def org_license_history(
+    request:    Request,
+    license_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    org, redir = await _require_org(request, db)
+    if redir:
+        raise HTTPException(401)
+
+    lic = (await db.execute(
+        select(License)
+        .where(License.id == license_id, License.client_id == org.id)
+        .options(selectinload(License.actions))
+    )).scalar_one_or_none()
+
+    if not lic:
+        raise HTTPException(404)
+
+    actions = sorted(lic.actions, key=lambda a: a.at, reverse=True)
+    return JSONResponse([
+        {
+            "action": a.action,
+            "at":     a.at.isoformat()[:16],
+            "actor":  a.actor  or "—",
+            "reason": a.reason or "",
+        }
+        for a in actions[:30]
+    ])
 
 
 # ── профиль ───────────────────────────────────────────────────────────────────

@@ -149,6 +149,11 @@
             <button type="button" class="btn small ghost"
                     onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}')"
                     title="Изменить описание">Изм.</button>
+
+            <!-- История действий -->
+            <button type="button" class="btn small ghost"
+                    onclick="openHistoryModal({{ lic.id }})"
+                    title="История действий по лицензии">История</button>
           </td>
         </tr>
       {% endfor %}
@@ -161,9 +166,26 @@
 {% if licenses %}
 <p style="font-size:12px;color:#94a3b8;margin-top:8px">
   Для активации лицензии используйте ключ в вашем приложении.
-  При потере доступа к устройству нажмите «Деактивировать» для переноса лицензии.
+  По вопросам сброса или переноса лицензии обращайтесь к вашему менеджеру.
 </p>
 {% endif %}
+
+<!-- Модалка истории действий -->
+<div id="historyModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeHistoryModal()"></div>
+  <div style="position:relative;background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+              padding:24px;width:520px;max-width:94vw;max-height:80vh;overflow-y:auto;
+              box-shadow:0 10px 40px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="font-size:15px">История действий</strong>
+      <button onclick="closeHistoryModal()"
+              style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1">&times;</button>
+    </div>
+    <div id="historyList" style="font-size:13px">
+      <div style="color:#94a3b8;text-align:center;padding:24px">Загрузка…</div>
+    </div>
+  </div>
+</div>
 
 <!-- Модалка редактирования описания -->
 <div id="editModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
@@ -229,8 +251,55 @@ function showCopied(btn) {
   }, 2000);
 }
 
+var ACTION_LABELS = {
+  'issue':      ['badge new',     'Выдача'],
+  'reset':      ['badge yellow',  'Сброс'],
+  'block':      ['badge danger',  'Блокировка'],
+  'unblock':    ['badge success', 'Разблокировка'],
+  'activate':   ['badge success', 'Активация'],
+  'deactivate': ['badge orange',  'Деактивация'],
+  'transfer':   ['badge purple',  'Перенос'],
+  'delete':     ['badge danger',  'Удаление'],
+};
+
+function openHistoryModal(licId) {
+  var modal = document.getElementById('historyModal');
+  var list  = document.getElementById('historyList');
+  modal.style.display = 'grid';
+  list.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:24px">Загрузка…</div>';
+
+  fetch('/org/licenses/' + licId + '/history')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.length) {
+        list.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:24px">История пуста</div>';
+        return;
+      }
+      list.innerHTML = data.map(function(item) {
+        var info   = ACTION_LABELS[item.action] || ['badge', item.action];
+        var badge  = '<span class="' + info[0] + '" style="white-space:nowrap">' + info[1] + '</span>';
+        var reason = item.reason ? '<span style="color:#64748b">' + item.reason + '</span>' : '';
+        var actor  = item.actor && item.actor !== '—'
+          ? '<span style="color:#94a3b8;font-size:11px">' + item.actor + '</span>' : '';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;'
+          + 'border-bottom:1px dashed #e2e8f0;flex-wrap:wrap">'
+          + '<span style="font-size:11px;color:#94a3b8;white-space:nowrap;min-width:110px">' + item.at + '</span>'
+          + badge
+          + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + reason + actor + '</div>'
+          + '</div>';
+      }).join('');
+    })
+    .catch(function() {
+      list.innerHTML = '<div style="color:#ef4444;text-align:center;padding:24px">Ошибка загрузки</div>';
+    });
+}
+
+function closeHistoryModal() {
+  document.getElementById('historyModal').style.display = 'none';
+}
+
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeEditModal();
+  if (e.key === 'Escape') { closeEditModal(); closeHistoryModal(); }
 });
 </script>
 {% endblock %}
