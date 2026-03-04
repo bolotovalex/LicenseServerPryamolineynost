@@ -16,7 +16,16 @@
 
 <!-- ═══════════════ БЛОК 1: ИНФОРМАЦИЯ ═══════════════ -->
 <div class="section">
-  <div class="section-title">Информация о клиенте</div>
+  <!-- Заголовок с мета-данными справа -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap;gap:8px">
+    <span class="section-title" style="margin:0;border:none;padding:0">Информация о клиенте</span>
+    <span style="font-size:12px;color:#94a3b8;text-align:right">
+      Логин:&nbsp;<code style="color:#64748b">{{ client.login or '—' }}</code>
+      &nbsp;·&nbsp;
+      Создан:&nbsp;{{ client.created_at.strftime('%d.%m.%Y') if client.created_at else '—' }}
+      {% if creator %}&nbsp;·&nbsp;{{ creator.email }}{% endif %}
+    </span>
+  </div>
 
   <div style="display:grid;grid-template-columns:140px 1fr;gap:20px;align-items:start">
 
@@ -40,14 +49,14 @@
       </form>
       {% if client.logo_data %}
         <form method="post" action="/owner/clients/{{ client.id }}/delete-logo" style="margin-top:4px">
-          <button class="btn small ghost" style="font-size:11px;color:#ef4444;padding:3px 8px">Удалить</button>
+          <button class="btn small ghost" style="font-size:11px;color:#ef4444;padding:3px 8px">Удалить лого</button>
         </form>
       {% endif %}
     </div>
 
     <!-- Форма редактирования -->
     <div>
-      <form method="post" action="/owner/clients/{{ client.id }}/update-info">
+      <form id="client-info-form" method="post" action="/owner/clients/{{ client.id }}/update-info">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div>
             <label>Название организации *</label>
@@ -71,33 +80,24 @@
             <textarea name="notes" class="textarea" rows="2">{{ client.notes or '' }}</textarea>
           </div>
         </div>
-        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="btn small">Сохранить изменения</button>
-
-          <!-- Нередактируемые поля -->
-          <span style="font-size:12px;color:#94a3b8;margin-left:8px">
-            Логин: <code>{{ client.login or '—' }}</code>
-            &nbsp;·&nbsp;
-            Создан: {{ client.created_at.strftime('%Y-%m-%d') if client.created_at else '—' }}
-            {% if creator %}
-              &nbsp;·&nbsp; {{ creator.email }}
-            {% endif %}
-          </span>
-        </div>
       </form>
 
-      <!-- Пароль и статус -->
-      <div style="display:flex;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
-        <button type="button" class="btn small amber" onclick="openResetPwModal()">Сбросить пароль</button>
-        <form method="post" action="/owner/clients/{{ client.id }}/toggle-active">
+      <!-- Все кнопки в одну строку -->
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center">
+        <button type="submit" form="client-info-form" class="btn small">Сохранить изменения</button>
+
+        <form method="post" action="/owner/clients/{{ client.id }}/toggle-active" style="display:contents">
           {% if client.is_active %}
             <button class="btn small ghost" style="color:#ef4444;border-color:#fca5a5">Отключить</button>
           {% else %}
             <button class="btn small green">Включить</button>
           {% endif %}
         </form>
-        <form method="post" action="/owner/clients/{{ client.id }}/delete"
-              onsubmit="return confirm('Удалить клиента «{{ client.org_name }}» и все его лицензии? Это необратимо.')">
+
+        <button type="button" class="btn small amber" onclick="openResetPwModal()">Сбросить пароль</button>
+
+        <form method="post" action="/owner/clients/{{ client.id }}/delete" style="display:contents"
+              onsubmit="return confirm('Удалить клиента «{{ client.org_name }}» и все его лицензии? Восстановить нельзя.')">
           <button class="btn small red">Удалить клиента</button>
         </form>
       </div>
@@ -118,7 +118,7 @@
       {% endif %}
     </span>
     {% if max_allowed > 0 %}
-      <button type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
+      <button id="issueBtn" type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
     {% else %}
       <button type="button" class="btn small" disabled title="Квота исчерпана">+ Выпустить лицензию</button>
     {% endif %}
@@ -292,6 +292,15 @@
                     </div>
                   </form>
                 {% endif %}
+
+                <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
+
+                <!-- Удалить лицензию -->
+                <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">УДАЛЕНИЕ</div>
+                <form method="post" action="/owner/licenses/{{ lic.id }}/delete"
+                      onsubmit="return confirm('Удалить ключ {{ lic.key }}?\nВосстановить нельзя, но он останется в архиве.')">
+                  <button class="btn small red">Удалить лицензию</button>
+                </form>
               </div>
             </details>
           </td>
@@ -379,6 +388,57 @@
 </div>
 
 
+<!-- ═══════════════ БЛОК 5: УДАЛЁННЫЕ ЛИЦЕНЗИИ ═══════════════ -->
+{% if deleted_licenses %}
+<div class="section" style="padding:0;overflow:hidden">
+  <details>
+    <summary style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px">
+      <span class="section-title" style="margin:0;border:none;padding:0">Архив удалённых лицензий</span>
+      <span class="badge gray">{{ deleted_licenses|length }}</span>
+    </summary>
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+    <table class="table-compact">
+      <thead>
+        <tr>
+          <th style="text-align:center">ID</th>
+          <th>Ключ</th>
+          <th style="text-align:center">Статус на момент удаления</th>
+          <th style="text-align:center">Выдан</th>
+          <th style="text-align:center">Удалён</th>
+          <th>Описание</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for lic in deleted_licenses %}
+        <tr style="color:#94a3b8;background:#fafafa">
+          <td style="font-size:11px;text-align:center">{{ lic.id }}</td>
+          <td><code style="font-size:11px">{{ lic.key }}</code></td>
+          <td style="text-align:center">
+            {% set st = lic.computed_status(now) %}
+            {% if st == 'blocked' %}<span class="badge danger">Заблокирован</span>
+            {% elif st == 'expired' %}<span class="badge gray">Истёк</span>
+            {% elif st == 'activated' %}<span class="badge success">Активирован</span>
+            {% elif st == 'released' %}<span class="badge warn">Освобождён</span>
+            {% else %}<span class="badge new">Не активирован</span>
+            {% endif %}
+          </td>
+          <td style="white-space:nowrap;font-size:12px;text-align:center">
+            {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
+          </td>
+          <td style="white-space:nowrap;font-size:12px;text-align:center;color:#ef4444">
+            {{ lic.deleted_at.strftime('%Y-%m-%d %H:%M') if lic.deleted_at else '—' }}
+          </td>
+          <td style="font-size:12px">{{ lic.description or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </details>
+</div>
+{% endif %}
+
+
 <!-- ═══════════════ МОДАЛКА СБРОСА ПАРОЛЯ ═══════════════ -->
 <div id="resetPwModal" style="display:none;position:fixed;inset:0;place-items:center;z-index:1000">
   <div style="position:absolute;inset:0;background:rgba(0,0,0,.35)" onclick="closeResetPwModal()"></div>
@@ -452,8 +512,12 @@
 <script>
 // ── Форма выдачи лицензии ──
 function toggleIssueForm() {
-  var f = document.getElementById('issueForm');
-  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  var f   = document.getElementById('issueForm');
+  var btn = document.getElementById('issueBtn');
+  if (!f) return;
+  var opening = f.style.display === 'none';
+  f.style.display = opening ? 'block' : 'none';
+  if (btn) btn.textContent = opening ? '✕ Закрыть' : '+ Выпустить лицензию';
 }
 
 // ── Модалка сброса пароля ──

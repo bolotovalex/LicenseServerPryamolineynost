@@ -167,9 +167,15 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
 
     licenses = (await db.execute(
         select(License)
-        .where(License.client_id == client_id)
+        .where(License.client_id == client_id, License.deleted_at.is_(None))
         .options(selectinload(License.keys))
         .order_by(desc(License.issued_at))
+    )).scalars().all()
+
+    deleted_licenses = (await db.execute(
+        select(License)
+        .where(License.client_id == client_id, License.deleted_at.isnot(None))
+        .order_by(desc(License.deleted_at))
     )).scalars().all()
 
     # История ключей для модалки
@@ -279,6 +285,7 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         total_keys=total_keys,
         available=available,
         max_allowed=max_allowed,
+        deleted_licenses=deleted_licenses,
         log_entries=log_entries,
         creator=creator,
         default_expires=default_expires,
@@ -424,7 +431,7 @@ async def client_generate_keys(
     request: Request,
     client_id:   int,
     count:       int = Form(1),
-    description: str = Form(...),
+    description: str = Form(""),
     expires_at:  str = Form(""),
     db: AsyncSession = Depends(get_session),
 ):
@@ -433,7 +440,9 @@ async def client_generate_keys(
     if not client:
         raise HTTPException(404)
 
-    total     = (await db.execute(select(func.count(License.id)).where(License.client_id == client_id))).scalar_one()
+    total     = (await db.execute(select(func.count(License.id)).where(
+        License.client_id == client_id, License.deleted_at.is_(None)
+    ))).scalar_one()
     available = max(0, client.max_keys - total)
 
     if count < 1 or count > 50:
@@ -441,12 +450,13 @@ async def client_generate_keys(
     if count > available:
         return _flash(f"/owner/clients/{client_id}", f"Квота исчерпана (доступно {available} из {client.max_keys})", "error")
 
-    exp       = dt.datetime.fromisoformat(expires_at) if expires_at else None
+    exp   = dt.datetime.fromisoformat(expires_at) if expires_at else None
+    desc  = description.strip() or "автоматическая генерация"
     new_lics  = []
 
     for _ in range(count):
         key = generate_license_key()
-        lic = License(client_id=client_id, version=1, key=key, expires_at=exp, description=description)
+        lic = License(client_id=client_id, version=1, key=key, expires_at=exp, description=desc)
         db.add(lic)
         await db.flush()
         db.add(LicenseKey(license_id=lic.id, key=key, is_active=True))
@@ -642,6 +652,27 @@ async def license_qr(request: Request, license_id: int, db: AsyncSession = Depen
     if not lic:
         raise HTTPException(404)
     return Response(content=make_qr_png(lic.key), media_type="image/png")
+
+
+@router.post("/licenses/{license_id}/delete")
+async def license_soft_delete(
+    request: Request,
+    license_id: int,
+    db: AsyncSession = Depends(get_session),
+):
+    owner = await require_owner(request, db)
+    lic = (await db.execute(select(License).where(License.id == license_id))).scalar_one_or_none()
+    if not lic or lic.deleted_at is not None:
+        raise HTTPException(404)
+    lic.deleted_at = dt.datetime.now(dt.UTC)
+    # Снимаем активацию при удалении
+    if lic.status == "activated":
+        lic.status = "released"
+        lic.device_id = None
+        lic.device_name = None
+    db.add(LicenseAction(license_id=lic.id, action="delete", actor=owner.email))
+    await db.commit()
+    return _flash(f"/owner/clients/{lic.client_id}", "Лицензия удалена")
 
 
 # ── администраторы (только superadmin) ───────────────────────────────────────

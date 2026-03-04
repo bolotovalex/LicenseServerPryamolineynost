@@ -115,6 +115,8 @@ async def _run_migrations(conn) -> None:
         ("licenses", "status",         "VARCHAR(20) DEFAULT 'not_activated'"),
         ("licenses", "device_name",    "VARCHAR(255)"),
         ("licenses", "device_comment", "TEXT"),
+        # licenses: мягкое удаление
+        ("licenses", "deleted_at",     "DATETIME"),
         # license_actions: расширенный аудит
         ("license_actions", "desc",   "TEXT"),
         ("license_actions", "actor",  "VARCHAR(255)"),

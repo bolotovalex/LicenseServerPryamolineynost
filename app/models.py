@@ -68,6 +68,7 @@ class License(Base):
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime)
     activation_payload: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str] = mapped_column(String(255), default="автоматическая генерация")
+    deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     client: Mapped["Client"] = relationship(back_populates="licenses")
     keys: Mapped[list["LicenseKey"]] = relationship(
         "LicenseKey",
