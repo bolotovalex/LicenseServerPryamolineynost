@@ -135,8 +135,8 @@ async def login_post(
     entity.last_login_at = now
     await db.commit()
 
-    from app.config import app_config
-    _secure = not app_config.debug
+    import os
+    _secure = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 
     if admin:
         resp = RedirectResponse(url="/owner/dashboard", status_code=303)
