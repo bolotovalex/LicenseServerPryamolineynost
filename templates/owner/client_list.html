@@ -126,7 +126,7 @@
           <td style="white-space:nowrap"><strong>{{ c.org_name }}</strong></td>
           <td style="white-space:nowrap;font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
           <td style="white-space:nowrap;color:#64748b;font-size:12px">{{ c.contact_email or '—' }}</td>
-          <td style="text-align:center">{{ c.licenses|length }}</td>
+          <td style="text-align:center">{{ c.licenses | selectattr('deleted_at', 'none') | list | length }}</td>
           <td style="text-align:center;color:#94a3b8">{{ c.max_keys }}</td>
           <td style="text-align:center">
             {% if c.is_active %}
