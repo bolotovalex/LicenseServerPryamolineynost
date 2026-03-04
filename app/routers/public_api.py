@@ -45,6 +45,11 @@ class TransferRequest(BaseModel):
     device_id: str
 
 
+class VerifyRequest(BaseModel):
+    key: str
+    device_id: str
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _get_ip(request: Request) -> str:
@@ -359,6 +364,57 @@ async def license_status(key: str, db: AsyncSession = Depends(get_session)):
 
     client = await db.get(Client, lic.client_id)
     return {"status": "ok", **_license_info(lic, client, now)}
+
+
+@router.post("/verify")
+async def verify_license(
+    request: Request,
+    data: VerifyRequest,
+    db: AsyncSession = Depends(get_session),
+):
+    """
+    Проверка активности лицензии на конкретном устройстве.
+    Используется мобильным/десктопным приложением для периодической валидации.
+    Не изменяет состояние лицензии.
+
+    Возвращает valid=true только если лицензия активирована именно на device_id из запроса.
+    """
+    now = dt.datetime.utcnow()
+    ip  = _get_ip(request)
+
+    lic = (await db.execute(select(License).where(License.key == data.key))).scalar_one_or_none()
+    if not lic:
+        await _log_api_error(db, request, "verify", "LICENSE_NOT_FOUND", data.device_id, ip)
+        return JSONResponse(status_code=404, content=_err("Лицензия не найдена", "LICENSE_NOT_FOUND"))
+
+    client = await db.get(Client, lic.client_id)
+    info   = _license_info(lic, client, now)
+
+    if lic.is_blocked:
+        return JSONResponse(status_code=403, content={
+            **_err(f"Лицензия заблокирована: {lic.block_reason or ''}".strip(), "LICENSE_BLOCKED"),
+            "valid": False, **info,
+        })
+
+    if lic.expires_at and now > lic.expires_at:
+        return JSONResponse(status_code=403, content={
+            **_err("Срок действия лицензии истёк", "LICENSE_EXPIRED"),
+            "valid": False, **info,
+        })
+
+    if lic.status != "activated":
+        return JSONResponse(status_code=409, content={
+            **_err("Лицензия не активирована", "NOT_ACTIVATED"),
+            "valid": False, **info,
+        })
+
+    if lic.device_id != data.device_id:
+        return JSONResponse(status_code=409, content={
+            **_err("Лицензия активирована на другом устройстве", "DEVICE_MISMATCH"),
+            "valid": False, **info,
+        })
+
+    return {"status": "ok", "valid": True, **info}
 
 
 @router.get("/history")

@@ -377,6 +377,31 @@ METHOD\nPATH\nTIMESTAMP\nNONCE\nSHA256(BODY)
 { "status": "ok", "new_key": "XXXX-YYYY-ZZZZ" }
 ```
 
+### POST /api/verify
+
+Периодическая проверка лицензии устройством. Не изменяет состояние.
+Возвращает `valid=true` только если лицензия активирована именно на переданном `device_id`.
+
+```json
+// Запрос
+{ "key": "ABCD-1234-EFGH", "device_id": "уникальный-id-устройства" }
+
+// Успех 200
+{
+  "status": "ok",
+  "valid": true,
+  "license_id": 42,
+  "organization": "ООО Пример",
+  "device_id": "уникальный-id-устройства",
+  "expires_at": "2027-01-15T00:00:00"
+}
+
+// Ошибка 409 — чужое устройство
+{ "status": "error", "code": "DEVICE_MISMATCH", "valid": false, ... }
+```
+
+**Коды ошибок:** `LICENSE_NOT_FOUND` (404), `LICENSE_BLOCKED` (403), `LICENSE_EXPIRED` (403), `NOT_ACTIVATED` (409), `DEVICE_MISMATCH` (409)
+
 ### GET /api/status?key=ABCD-1234-EFGH
 
 Текущее состояние лицензии (без активации).
