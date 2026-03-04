@@ -80,7 +80,8 @@
       </thead>
       <tbody>
       {% for lic in licenses %}
-        {% set is_expired = lic.expires_at and lic.expires_at < now %}
+        {% set st = lic.computed_status(now) %}
+        {% set is_expired = st == 'expired' %}
         <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
 
           <!-- Ключ -->
@@ -91,14 +92,11 @@
 
           <!-- Статус -->
           <td style="white-space:nowrap">
-            {% if lic.is_blocked %}
-              <span class="badge danger" title="{{ lic.block_reason or '' }}">заблокирован</span>
-            {% elif is_expired %}
-              <span class="badge gray">истёк</span>
-            {% elif lic.activated_at %}
-              <span class="badge success">активен</span>
-            {% else %}
-              <span class="badge new">не активирован</span>
+            {% if st == 'blocked' %}<span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
+            {% elif st == 'expired' %}<span class="badge gray">Истёк</span>
+            {% elif st == 'activated' %}<span class="badge success">Активирован</span>
+            {% elif st == 'released' %}<span class="badge warn">Освобождён</span>
+            {% else %}<span class="badge new">Не активирован</span>
             {% endif %}
           </td>
 
@@ -153,7 +151,7 @@
                     title="Изменить описание">Изм.</button>
 
             <!-- Деактивировать (только у активированных, незаблокированных) -->
-            {% if lic.activated_at and not lic.is_blocked %}
+            {% if st == 'activated' %}
               <form method="post" action="/org/licenses/{{ lic.id }}/deactivate"
                     style="display:inline"
                     onsubmit="return confirm('Отвязать лицензию от устройства?\nПотребуется повторная активация.')">

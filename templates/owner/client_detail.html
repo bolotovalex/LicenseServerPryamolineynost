@@ -224,7 +224,8 @@
         </thead>
         <tbody>
         {% for lic in licenses %}
-          {% set is_expired = lic.expires_at and lic.expires_at < now %}
+          {% set st = lic.computed_status(now) %}
+          {% set is_expired = st == 'expired' %}
           <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
             <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.id }}</td>
             <td>
@@ -234,7 +235,6 @@
             </td>
             <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.version }}</td>
             <td style="text-align:center">
-              {% set st = lic.computed_status(now) %}
               {% if st == 'blocked' %}
                 <span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
               {% elif st == 'expired' %}
