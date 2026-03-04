@@ -73,21 +73,21 @@
     <table class="table-compact">
       <thead>
         <tr>
-          <th>ID</th>
+          <th style="width:48px;text-align:center">ID</th>
           <th>Организация</th>
           <th>Логин</th>
           <th>Email</th>
-          <th>Удалён</th>
-          <th></th>
+          <th style="width:140px">Удалён</th>
+          <th style="width:120px"></th>
         </tr>
       </thead>
       <tbody>
       {% for c in clients %}
         <tr style="color:#94a3b8;background:#fafafa">
-          <td style="font-size:12px">{{ c.id }}</td>
-          <td><strong style="color:#475569">{{ c.org_name }}</strong></td>
-          <td style="font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
-          <td style="font-size:12px">{{ c.contact_email or '—' }}</td>
+          <td style="text-align:center;font-size:12px">{{ c.id }}</td>
+          <td style="white-space:nowrap"><strong style="color:#475569">{{ c.org_name }}</strong></td>
+          <td style="white-space:nowrap;font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
+          <td style="white-space:nowrap;font-size:12px">{{ c.contact_email or '—' }}</td>
           <td style="white-space:nowrap;font-size:12px;color:#ef4444">
             {{ c.deleted_at.strftime('%Y-%m-%d %H:%M') if c.deleted_at else '—' }}
           </td>
@@ -107,25 +107,25 @@
     <table class="table-compact">
       <thead>
         <tr>
-          <th>ID</th>
+          <th style="width:48px;text-align:center">ID</th>
           <th>Организация</th>
           <th>Логин</th>
           <th>Email</th>
-          <th class="right">Ключей</th>
-          <th class="right">Лимит</th>
-          <th>Статус</th>
+          <th style="width:70px;text-align:center">Ключей</th>
+          <th style="width:60px;text-align:center">Лимит</th>
+          <th style="width:100px;text-align:center">Статус</th>
         </tr>
       </thead>
       <tbody>
       {% for c in clients %}
         <tr style="cursor:pointer" onclick="location.href='/owner/clients/{{ c.id }}'">
-          <td style="color:#94a3b8;font-size:12px">{{ c.id }}</td>
-          <td><strong>{{ c.org_name }}</strong></td>
-          <td style="font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
-          <td style="color:#64748b;font-size:12px">{{ c.contact_email or '—' }}</td>
-          <td class="right">{{ c.licenses|length }}</td>
-          <td class="right" style="color:#94a3b8">{{ c.max_keys }}</td>
-          <td>
+          <td style="text-align:center;color:#94a3b8;font-size:12px">{{ c.id }}</td>
+          <td style="white-space:nowrap"><strong>{{ c.org_name }}</strong></td>
+          <td style="white-space:nowrap;font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
+          <td style="white-space:nowrap;color:#64748b;font-size:12px">{{ c.contact_email or '—' }}</td>
+          <td style="text-align:center">{{ c.licenses|length }}</td>
+          <td style="text-align:center;color:#94a3b8">{{ c.max_keys }}</td>
+          <td style="text-align:center">
             {% if c.is_active %}
               <span class="badge success">активен</span>
             {% else %}
