@@ -149,15 +149,6 @@
             <button type="button" class="btn small ghost"
                     onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}')"
                     title="Изменить описание">Изм.</button>
-
-            <!-- Деактивировать (только у активированных, незаблокированных) -->
-            {% if st == 'activated' %}
-              <form method="post" action="/org/licenses/{{ lic.id }}/deactivate"
-                    style="display:inline"
-                    onsubmit="return confirm('Отвязать лицензию от устройства?\nПотребуется повторная активация.')">
-                <button class="btn small amber">Деактивировать</button>
-              </form>
-            {% endif %}
           </td>
         </tr>
       {% endfor %}

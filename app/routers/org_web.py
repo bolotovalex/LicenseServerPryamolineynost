@@ -95,51 +95,6 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_session)):
     return templates.TemplateResponse("org/dashboard.html", ctx)
 
 
-@router.post("/licenses/{license_id}/deactivate")
-async def license_deactivate(
-    request:    Request,
-    license_id: int,
-    db: AsyncSession = Depends(get_session),
-):
-    org, redir = await _require_org(request, db)
-    if redir:
-        return redir
-
-    # Строго: только лицензия данной организации
-    lic = (await db.execute(
-        select(License).where(
-            License.id == license_id,
-            License.client_id == org.id,
-        )
-    )).scalar_one_or_none()
-
-    if not lic:
-        return _flash("/org/dashboard", "Лицензия не найдена", "error")
-    if not lic.activated_at:
-        return _flash("/org/dashboard", "Лицензия не активирована", "error")
-
-    lic.activated_at       = None
-    lic.device_id          = None
-    lic.activation_payload = None
-    lic.version            = (lic.version or 1) + 1
-
-    db.add(LicenseAction(license_id=lic.id, action="deactivate"))
-    await log_action(
-        db=db,
-        actor_type="org",
-        action="deactivate",
-        actor_id=org.id,
-        actor_login=org.login,
-        entity_type="license",
-        entity_id=lic.id,
-        details={"license_id": lic.id, "key_prefix": lic.key[:8] if lic.key else ""},
-        success=True,
-        request=request,
-    )
-    await db.commit()
-    return _flash("/org/dashboard", "Лицензия деактивирована. Повторная активация доступна на любом устройстве.")
-
-
 @router.post("/licenses/generate")
 async def org_license_generate(
     request:     Request,

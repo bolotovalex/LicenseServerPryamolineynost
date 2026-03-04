@@ -167,76 +167,53 @@ actions_payloads = {
 
 ---
 
-## Этап 4. Кабинет организации: полное управление лицензиями
+## Этап 4. Кабинет организации: просмотр истории
 
-### 4а. Сброс ключа (reset)
+**Политика**: организация управляет только описанием лицензии и выпуском новых (в рамках квоты).
+Сброс ключа, деактивация и удаление — исключительно через владельца (owner).
+Это исключает манипуляции с ключами со стороны клиентов.
 
-Добавить в `app/routers/org_web.py`:
+Уже удалено:
+- `POST /org/licenses/{id}/deactivate` — эндпоинт удалён из `org_web.py`
+- Кнопка «Деактивировать» — убрана из `org/dashboard.html`
 
-```python
-@router.post("/licenses/{license_id}/reset")
-async def org_license_reset(license_id: int, request: Request, db: AsyncSession = Depends(get_session)):
-    org = await require_org(request, db)
-    lic = await db.get(License, license_id)
-    if not lic or lic.client_id != org.id:
-        raise HTTPException(404)
-    if lic.status == "blocked":
-        return _flash(f"/org/dashboard", "Нельзя сбросить заблокированный ключ", "error")
-    # Деактивировать активный LicenseKey
-    active_key = (await db.execute(
-        select(LicenseKey).where(LicenseKey.license_id == lic.id, LicenseKey.is_active == True)
-    )).scalar_one_or_none()
-    if active_key:
-        active_key.is_active = False
-        active_key.deactivated_at = datetime.datetime.now(datetime.UTC)
-        active_key.reason = "reset by org"
-    # Новый ключ
-    new_key = generate_license_key()
-    db.add(LicenseKey(license_id=lic.id, key=new_key, is_active=True))
-    lic.key = new_key
-    lic.status = "not_activated"
-    lic.device_id = None
-    lic.device_name = None
-    lic.device_comment = None
-    lic.activated_at = None
-    lic.version = (lic.version or 0) + 1
-    db.add(LicenseAction(license_id=lic.id, action="reset", actor=org.login, reason="reset by org"))
-    await log_action(db, actor_type="org", actor_id=org.id, actor_login=org.login,
-                     action="license_reset", entity_type="license", entity_id=lic.id, request=request)
-    await db.commit()
-    return _flash("/org/dashboard", "Ключ сброшен")
-```
-
-### 4б. История действий по лицензии (для org)
+### 4а. История действий по лицензии (read-only)
 
 Добавить в `app/routers/org_web.py`:
 
 ```python
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import selectinload
+
 @router.get("/licenses/{license_id}/history")
 async def org_license_history(license_id: int, request: Request, db: AsyncSession = Depends(get_session)):
-    org = await require_org(request, db)
+    org, redir = await _require_org(request, db)
+    if redir:
+        return redir
     lic = (await db.execute(
-        select(License).where(License.id == license_id, License.client_id == org.id)
+        select(License)
+        .where(License.id == license_id, License.client_id == org.id)
         .options(selectinload(License.actions))
     )).scalar_one_or_none()
     if not lic:
+        from fastapi import HTTPException
         raise HTTPException(404)
     actions = sorted(lic.actions, key=lambda a: a.at, reverse=True)
     return JSONResponse([
-        {"action": a.action, "at": a.at.isoformat()[:16], "actor": a.actor or "—",
-         "reason": a.reason or "", "ip": a.ip or ""}
+        {"action": a.action, "at": a.at.isoformat()[:16],
+         "actor": a.actor or "—", "reason": a.reason or ""}
         for a in actions[:30]
     ])
 ```
 
-### 4в. UI org/dashboard.html: новые кнопки и колонки
+### 4б. UI org/dashboard.html: кнопка «История»
 
-В таблице лицензий добавить:
-- Колонку «Устройство»: показывать `device_name` если есть, иначе `device_id[:20]…`, в `title` — полный `device_id`
-- Кнопку **«Сбросить ключ»** (только у `released`, `not_activated`): `POST /org/licenses/{id}/reset` с `confirm()`
-- Кнопку **«История»**: fetch `GET /org/licenses/{id}/history`, показывать результат в модалке
+В таблице лицензий добавить кнопку **«История»** рядом с «Изм.»:
+- `fetch` → `GET /org/licenses/{id}/history`
+- Показывает результат в модалке (список действий с датой, типом и причиной)
 
-Org **не может** менять `max_keys` — не добавлять это поле в форму.
+Org **не может** менять `max_keys` — не добавлять это поле.
+Org **не получает** кнопки сброса, деактивации, удаления — они только у owner.
 
 ---
 
@@ -547,7 +524,7 @@ async def test_restore_deleted_client(client, db):
 
 ### Python:
 - [ ] `app/routers/owner_web.py` — убрать excess_licenses, добавить actions_payloads, restore endpoint, quota indicator
-- [ ] `app/routers/org_web.py` — POST `/licenses/{id}/reset`, GET `/licenses/{id}/history`
+- [ ] `app/routers/org_web.py` — GET `/licenses/{id}/history` (только чтение; reset/deactivate/delete — только owner)
 - [ ] `app/routers/public_api.py` — Сценарий 3 (device swap), `_log_api_error` helper, `logo_url` в ответе, `code: "DEACTIVATED"`
 
 ### Шаблоны:
@@ -555,7 +532,7 @@ async def test_restore_deleted_client(client, db):
 - [ ] `templates/owner/backup.html` — единый стиль base_owner.html
 - [ ] `templates/owner/client_detail.html` — убрать excess_licenses, info-row, actions_payloads модалка, resizable columns, disable кнопки при квоте
 - [ ] `templates/owner/client_list.html` — новые placeholder, переключатель «Показать удалённых»
-- [ ] `templates/org/dashboard.html` — русские статусы, кнопка Сбросить, кнопка История, колонка Устройство с device_id в title
+- [ ] `templates/org/dashboard.html` — кнопка История (модалка); сброс/деактивация/удаление убраны
 - [ ] Все шаблоны — русские названия статусов
 
 ### CSS:

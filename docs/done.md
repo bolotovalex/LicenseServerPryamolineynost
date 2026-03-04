@@ -42,6 +42,19 @@
 ### 2е. Плейсхолдеры в форме создания клиента
 - `templates/owner/client_list.html`: обновлены примеры — «АО Технопарк Сибирь», `technopark_sib`, `admin@technopark-sib.ru`, «Договор №456 от 15.01.2025»
 
+## Этап 3 — Русские статусы в UI (2026-03-04)
+
+### 3а. `templates/org/dashboard.html`
+- Статусный блок заменён с ручного `if lic.is_blocked / is_expired / activated_at` на `lic.computed_status(now)`
+- Добавлен статус «Освобождён» (`.badge.warn`); все названия с заглавной буквы
+- `is_expired` теперь производный от `st == 'expired'`, не дублирует логику
+- Условие кнопки «Деактивировать» обновлено: `st == 'activated'` (было `lic.activated_at and not lic.is_blocked`)
+
+### 3б. `templates/owner/client_detail.html`
+- `{% set st %}` перемещён перед `<tr>`, `is_expired` производный от `st == 'expired'`
+- Статусные бейджи уже используют `computed_status(now)` — верификация и очистка
+
 ### Коммиты
 - `4c7c93b` — refactor(ui): убрать кнопку «Все клиенты» из dashboard, привести backup к общему стилю
 - `5f2de16` — refactor(owner): карточка клиента — убрать excess_licenses, русские статусы, модалка действий, resizable columns
+- `30cdc78` — refactor(ui): русские статусы в кабинете организации, computed_status(now)
