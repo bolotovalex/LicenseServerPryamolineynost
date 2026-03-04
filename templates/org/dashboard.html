@@ -2,7 +2,6 @@
 {% block title %}Лицензии — {{ org.org_name }}{% endblock %}
 
 {% block content %}
-<<<<<<< HEAD
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
   <h1 style="margin:0;font-size:22px">Мои лицензии</h1>
   {% set quota_left = org.max_keys - stats_total %}
@@ -10,9 +9,6 @@
     <button type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
   {% endif %}
 </div>
-=======
-<h1 style="margin:0 0 20px;font-size:22px">Мои лицензии</h1>
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
 <!-- Статистика -->
 <div class="stat-bar">
@@ -34,7 +30,6 @@
   </div>
 </div>
 
-<<<<<<< HEAD
 <!-- Форма выпуска лицензии (скрыта по умолчанию) -->
 {% set quota_left = org.max_keys - stats_total %}
 {% if quota_left > 0 %}
@@ -68,68 +63,61 @@
       Лицензий пока нет.
       {% if quota_left > 0 %}Нажмите «Выпустить лицензию» выше.
       {% else %}Обратитесь к вашему менеджеру.{% endif %}
-=======
-<!-- Таблица лицензий -->
-<div class="org-card" style="padding:0;overflow:hidden">
-  {% if not licenses %}
-    <div style="padding:40px;text-align:center;color:#94a3b8">
-      Лицензий пока нет. Обратитесь к вашему менеджеру.
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     </div>
   {% else %}
-  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
-    <table class="table-compact">
+  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none;overflow-x:auto">
+    <table id="licTable" class="table-compact" style="table-layout:fixed;width:max-content;min-width:100%">
+      <colgroup>
+        <col style="width:220px"><!-- Ключ -->
+        <col style="width:60px"> <!-- Версия -->
+        <col style="width:130px"><!-- Статус -->
+        <col style="width:160px"><!-- Устройство -->
+        <col style="width:100px"><!-- Активирован -->
+        <col style="width:90px"> <!-- До -->
+        <col style="width:160px"><!-- Описание -->
+        <col style="width:44px"> <!-- Действия -->
+      </colgroup>
       <thead>
         <tr>
-          <th>Ключ</th>
-          <th>Статус</th>
-          <th>Устройство</th>
-          <th>Активирован</th>
-          <th>До</th>
-          <th>Описание</th>
-          <th class="right">Действия</th>
+          <th class="resizable">Ключ</th>
+          <th class="resizable" style="text-align:center">Версия</th>
+          <th class="resizable">Статус</th>
+          <th class="resizable">Устройство</th>
+          <th class="resizable">Активирован</th>
+          <th class="resizable">До</th>
+          <th class="resizable">Описание</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
       {% for lic in licenses %}
-<<<<<<< HEAD
         {% set st = lic.computed_status(now) %}
         {% set is_expired = st == 'expired' %}
-=======
-        {% set is_expired = lic.expires_at and lic.expires_at < now %}
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
 
           <!-- Ключ -->
-          <td>
+          <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
             <code style="font-family:monospace;font-size:12px;color:#334155;
                          letter-spacing:.04em;user-select:all">{{ lic.key }}</code>
           </td>
 
+          <!-- Версия -->
+          <td style="text-align:center;font-size:12px;color:#94a3b8;white-space:nowrap">
+            v{{ lic.version or 1 }}
+          </td>
+
           <!-- Статус -->
-          <td style="white-space:nowrap">
-<<<<<<< HEAD
+          <td style="white-space:nowrap;overflow:hidden">
             {% if st == 'blocked' %}<span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
             {% elif st == 'expired' %}<span class="badge gray">Истёк</span>
             {% elif st == 'activated' %}<span class="badge success">Активирован</span>
             {% elif st == 'released' %}<span class="badge warn">Освобождён</span>
             {% else %}<span class="badge new">Не активирован</span>
-=======
-            {% if lic.is_blocked %}
-              <span class="badge danger" title="{{ lic.block_reason or '' }}">заблокирован</span>
-            {% elif is_expired %}
-              <span class="badge gray">истёк</span>
-            {% elif lic.activated_at %}
-              <span class="badge success">активен</span>
-            {% else %}
-              <span class="badge new">не активирован</span>
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             {% endif %}
           </td>
 
           <!-- Устройство -->
-<<<<<<< HEAD
-          <td style="font-size:12px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          <td style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ (lic.device_name or '') + (' · ' + lic.device_id if lic.device_id else '') }}">
             {% if lic.device_name %}
               {{ lic.device_name }}
@@ -138,21 +126,16 @@
             {% else %}
               —
             {% endif %}
-=======
-          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
-              style="font-size:12px;color:#64748b">
-            {{ lic.device_id or '—' }}
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
           </td>
 
           <!-- Активирован -->
-          <td style="white-space:nowrap;font-size:12px;color:#64748b"
+          <td style="white-space:nowrap;font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis"
               title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') if lic.activated_at else '' }}">
             {{ lic.activated_at.strftime('%Y-%m-%d') if lic.activated_at else '—' }}
           </td>
 
           <!-- Срок -->
-          <td style="white-space:nowrap;font-size:12px"
+          <td style="white-space:nowrap;font-size:12px;overflow:hidden;text-overflow:ellipsis"
               title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
             {% if lic.expires_at %}
               <span {% if is_expired %}style="color:#ef4444;font-weight:500"{% else %}style="color:#374151"{% endif %}>
@@ -164,54 +147,28 @@
           </td>
 
           <!-- Описание -->
-<<<<<<< HEAD
-          <td style="font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          <td style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ lic.description or '' }}">
-=======
-          <td class="ellipsis w-280" title="{{ lic.description or '' }}"
-              style="font-size:13px">
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             {{ lic.description or '—' }}
           </td>
 
           <!-- Действия -->
-          <td class="right" style="white-space:nowrap">
-            <!-- Копировать ключ -->
-            <button class="btn small ghost"
-                    onclick="copyKey('{{ lic.key }}', this)"
-                    title="Копировать ключ в буфер обмена">
-              Копировать
-            </button>
-
-<<<<<<< HEAD
-            <!-- Изменить описание -->
-            <button type="button" class="btn small ghost"
-                    onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}')"
-                    title="Изменить описание">Изм.</button>
-
-            <!-- Сбросить ключ (только released / not_activated) -->
-            {% if st in ('released', 'not_activated') %}
-              <form method="post" action="/org/licenses/{{ lic.id }}/reset"
-                    style="display:inline"
-                    onsubmit="return confirm('Сгенерировать новый ключ?\nТекущий ключ станет недействительным.')">
-                <button class="btn small amber">Сбросить ключ</button>
-              </form>
-            {% endif %}
-
-            <!-- История действий -->
-            <button type="button" class="btn small ghost"
-                    onclick="openHistoryModal({{ lic.id }})"
-                    title="История действий по лицензии">История</button>
-=======
-            <!-- Деактивировать (только у активированных, незаблокированных) -->
-            {% if lic.activated_at and not lic.is_blocked %}
-              <form method="post" action="/org/licenses/{{ lic.id }}/deactivate"
-                    style="display:inline"
-                    onsubmit="return confirm('Отвязать лицензию от устройства?\nПотребуется повторная активация.')">
-                <button class="btn small amber">Деактивировать</button>
-              </form>
-            {% endif %}
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
+          <td style="text-align:center;padding:0 4px;position:relative">
+            <div class="row-menu-wrap">
+              <button class="row-menu-btn" onclick="toggleRowMenu(this)" title="Действия">&#8942;</button>
+              <div class="row-menu">
+                <button class="row-menu-item" onclick="copyKey('{{ lic.key }}', this);closeRowMenu()">Копировать ключ</button>
+                <button class="row-menu-item" onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}');closeRowMenu()">Изменить описание</button>
+                {% if st in ('released', 'not_activated') %}
+                  <button class="row-menu-item amber"
+                          onclick="if(confirm('Сгенерировать новый ключ?\nТекущий ключ станет недействительным.')){document.getElementById('reset-{{ lic.id }}').submit()};closeRowMenu()">
+                    Сбросить ключ
+                  </button>
+                  <form id="reset-{{ lic.id }}" method="post" action="/org/licenses/{{ lic.id }}/reset" style="display:none"></form>
+                {% endif %}
+                <button class="row-menu-item" onclick="openHistoryModal({{ lic.id }});closeRowMenu()">История</button>
+              </div>
+            </div>
           </td>
         </tr>
       {% endfor %}
@@ -224,7 +181,6 @@
 {% if licenses %}
 <p style="font-size:12px;color:#94a3b8;margin-top:8px">
   Для активации лицензии используйте ключ в вашем приложении.
-<<<<<<< HEAD
   По вопросам сброса или переноса лицензии обращайтесь к вашему менеджеру.
 </p>
 {% endif %}
@@ -265,16 +221,115 @@
     </form>
   </div>
 </div>
-=======
-  При потере доступа к устройству нажмите «Деактивировать» для переноса лицензии.
-</p>
-{% endif %}
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 {% endblock %}
 
 {% block scripts %}
+<style>
+.row-menu-wrap { position:relative; display:inline-block; }
+.row-menu-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; color: #94a3b8; padding: 2px 6px;
+  border-radius: 4px; line-height: 1;
+}
+.row-menu-btn:hover { background: #f1f5f9; color: #334155; }
+.row-menu {
+  display: none; position: fixed;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); z-index: 9999;
+  min-width: 170px; padding: 4px 0;
+}
+.row-menu.open { display: block; }
+.row-menu-item {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer;
+  padding: 7px 14px; font-size: 13px; color: #374151;
+  white-space: nowrap;
+}
+.row-menu-item:hover { background: #f8fafc; }
+.row-menu-item.amber { color: #b45309; }
+.row-menu-item.amber:hover { background: #fffbeb; }
+
+th.resizable {
+  position: relative;
+}
+th.resizable::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  border-right: 2px solid #cbd5e1;
+  opacity: 0;
+  transition: opacity .15s;
+}
+th.resizable:hover::after,
+th.resizable.resizing::after {
+  opacity: 1;
+}
+</style>
 <script>
-<<<<<<< HEAD
+(function() {
+  var table = document.getElementById('licTable');
+  if (!table) return;
+  var ths = table.querySelectorAll('th.resizable');
+  var cols = table.querySelectorAll('col');
+
+  ths.forEach(function(th, i) {
+    var handle = document.createElement('div');
+    handle.style.cssText = 'position:absolute;right:0;top:0;height:100%;width:8px;cursor:col-resize;z-index:1';
+    th.appendChild(handle);
+
+    var startX, startW;
+    handle.addEventListener('mousedown', function(e) {
+      startX = e.pageX;
+      startW = cols[i].offsetWidth || th.offsetWidth;
+      th.classList.add('resizing');
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'col-resize';
+
+      function onMove(e) {
+        var w = Math.max(40, startW + e.pageX - startX);
+        cols[i].style.width = w + 'px';
+      }
+      function onUp() {
+        th.classList.remove('resizing');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  });
+})();
+
+var _openMenu = null;
+function toggleRowMenu(btn) {
+  var menu = btn.nextElementSibling;
+  if (_openMenu && _openMenu !== menu) { _openMenu.classList.remove('open'); }
+  if (menu.classList.contains('open')) {
+    menu.classList.remove('open');
+    _openMenu = null;
+    return;
+  }
+  var r = btn.getBoundingClientRect();
+  menu.style.top  = (r.bottom + 4) + 'px';
+  menu.style.left = Math.max(4, r.right - 170) + 'px';
+  menu.classList.add('open');
+  _openMenu = menu;
+}
+function closeRowMenu() {
+  if (_openMenu) { _openMenu.classList.remove('open'); _openMenu = null; }
+}
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.row-menu-wrap')) closeRowMenu();
+});
+
 function toggleIssueForm() {
   var f = document.getElementById('issueForm');
   if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
@@ -292,11 +347,6 @@ function closeEditModal() {
 
 function copyKey(key, btn) {
   if (!navigator.clipboard) {
-=======
-function copyKey(key, btn) {
-  if (!navigator.clipboard) {
-    // fallback для старых браузеров
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     var ta = document.createElement('textarea');
     ta.value = key;
     ta.style.position = 'fixed';
@@ -320,7 +370,6 @@ function showCopied(btn) {
     btn.disabled = false;
   }, 2000);
 }
-<<<<<<< HEAD
 
 var ACTION_LABELS = {
   'issue':      ['badge new',     'Выдача'],
@@ -372,7 +421,5 @@ function closeHistoryModal() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') { closeEditModal(); closeHistoryModal(); }
 });
-=======
->>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 </script>
 {% endblock %}
