@@ -198,15 +198,15 @@
       <table class="table-compact resizable-table">
         <colgroup>
           <col style="width:42px">
-          <col style="width:130px">
+          <col style="width:140px">
           <col style="width:34px">
-          <col style="width:100px">
+          <col style="width:120px">
           <col>
           <col style="width:88px">
           <col style="width:88px">
           <col style="width:80px">
           <col>
-          <col style="width:110px">
+          <col style="width:80px">
         </colgroup>
         <thead>
           <tr>
@@ -234,7 +234,7 @@
                       onclick="copyKey('{{ lic.key }}', this)" title="Копировать ключ">&#128203;</button>
             </td>
             <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.version }}</td>
-            <td style="text-align:center">
+            <td style="text-align:center;white-space:nowrap">
               {% if st == 'blocked' %}
                 <span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
               {% elif st == 'expired' %}
@@ -270,9 +270,6 @@
               {{ lic.description or '—' }}
             </td>
             <td class="right" style="white-space:nowrap">
-              <button type="button" class="btn small ghost"
-                      data-open-keys="{{ (keys_payloads or {})[lic.id] | tojson }}"
-                      title="История ключей">&#128214;</button>
               <button type="button" class="btn small ghost"
                       data-open-actions="{{ (actions_payloads or {})[lic.id] | tojson }}"
                       title="История действий">&#128221;</button>
