@@ -214,7 +214,7 @@ async def license_deactivate(
         return _flash("/org/dashboard", "Лицензия не найдена", "error")
 <<<<<<< HEAD
 
-    now = dt.datetime.now(dt.UTC)
+    now = dt.datetime.utcnow()
     st  = lic.computed_status(now)
     if st not in ("released", "not_activated"):
         return _flash("/org/dashboard", "Сброс доступен только для деактивированных и неактивированных лицензий", "error")
