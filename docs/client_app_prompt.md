@@ -1,230 +1,291 @@
 # Промпт для Claude Code: создание клиентского приложения
 
-Используйте этот промпт как стартовую точку для Claude Code при разработке клиентского приложения, использующего License Server API.
+Используйте этот промпт как стартовую точку при разработке клиентского приложения поверх License Server API.
 
 ---
 
 ```md
-Ты работаешь в репозитории Python-клиента для License Server API.
-Создай клиентскую библиотеку (пакет `liclient`) и демо-приложение.
+Ты работаешь над клиентским приложением, которое использует License Server API для управления лицензиями ПО.
 
-## Что такое License Server
+## License Server API — быстрый справочник
 
-REST API сервер лицензирования ПО. Базовый URL: задаётся через конфиг.
-Все запросы к /api/* требуют HMAC-SHA256 подписи.
+**Base URL:** задаётся через конфигурацию (например, `https://licenses.example.com`)
+**Все запросы к /api/*** требуют HMAC-SHA256 подписи (см. раздел «Подпись»).
+
+---
 
 ## Формат ключа
 
-`XXXX-XXXX-XXXX` — 12 символов A-Z0-9, три блока по 4 символа, разделённых дефисом.
+`ABCD-1234-EFGH` — 12 символов A–Z, 0–9, три блока по 4 через дефис.
+
+---
 
 ## Статусы лицензии
 
-- `not_activated` — ключ выпущен, не использован
-- `activated`     — активирован на устройстве (device_id привязан)
-- `released`      — был активирован, затем деактивирован (доступен для повторной активации)
-- `blocked`       — заблокирован владельцем (активация невозможна)
-- `expired`       — истёк срок действия (вычисляется на лету)
+| Статус          | Описание                                                       |
+|-----------------|----------------------------------------------------------------|
+| `not_activated` | Ключ выпущен, ещё не активирован                               |
+| `activated`     | Активирован — `device_id` и `activated_at` заполнены          |
+| `released`      | Был активирован, затем деактивирован — доступен повторно       |
+| `blocked`       | Заблокирован администратором — активация невозможна            |
+| `expired`       | Срок истёк (`expires_at` в прошлом) — вычисляется на сервере  |
 
-## HMAC-подпись запроса
+---
 
-Каждый запрос к /api/* должен содержать заголовки:
-- `X-Timestamp`: Unix timestamp (int, UTC секунды)
-- `X-Nonce`: UUID4 строка (каждый раз уникальная)
-- `X-Signature`: HMAC-SHA256 hex-дайджест строки подписи
+## HMAC-SHA256 подпись
 
-Строка для подписи (точный формат, без пробелов вокруг \n):
+Каждый запрос обязан содержать три заголовка:
+
 ```
-{METHOD}\n{PATH}\n{TIMESTAMP}\n{NONCE}\n{SHA256(BODY_BYTES)}
+X-Timestamp:  <unix timestamp UTC, целое число секунд>
+X-Nonce:      <UUID4 или random hex, уникален для каждого запроса, ≤ 128 символов>
+X-Signature:  <HMAC-SHA256 hex строки подписи>
 ```
 
-Пример (Python):
+**Строка для подписи** (компоненты соединяются символом `\n`):
+
+```
+{METHOD}\n{PATH}\n{TIMESTAMP}\n{NONCE}\n{SHA256_HEX(BODY_BYTES)}
+```
+
+- `METHOD` — HTTP-метод в верхнем регистре: `POST`, `GET`
+- `PATH` — путь без query string: `/api/activate`
+- Для GET-запросов (тело пустое) SHA256 = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+
+**Реализация на Python:**
+
 ```python
-import hashlib, hmac, time, uuid, json
+import hashlib, hmac, time, uuid
 
-def make_headers(method: str, path: str, body: bytes, secret: str) -> dict:
+def sign(method: str, path: str, body: bytes, secret: str) -> dict:
     ts    = str(int(time.time()))
     nonce = str(uuid.uuid4())
     body_hash = hashlib.sha256(body).hexdigest()
     sts = f"{method}\n{path}\n{ts}\n{nonce}\n{body_hash}"
     sig = hmac.new(secret.encode(), sts.encode(), hashlib.sha256).hexdigest()
-    return {"X-Timestamp": ts, "X-Nonce": nonce, "X-Signature": sig}
+    return {
+        "X-Timestamp": ts, "X-Nonce": nonce, "X-Signature": sig,
+        "Content-Type": "application/json",
+    }
 ```
 
-## API Endpoints
+**Ошибки подписи → HTTP 401:**
 
-### POST /api/activate
-Активация ключа. Идемпотентна (повторный вызов с тем же device_id → 200).
+| Код                 | Причина                                              |
+|---------------------|------------------------------------------------------|
+| `TIMESTAMP_EXPIRED` | Временная метка отсутствует или отклонение > 30 сек  |
+| `NONCE_REUSED`      | Nonce уже использовался в течение 60 сек             |
+| `INVALID_SIGNATURE` | Подпись не совпадает                                 |
 
-Запрос:
+---
+
+## Эндпоинты
+
+### POST /api/activate — активация лицензии
+
+Идемпотентен: повторный вызов с тем же `device_id` → 200, обновляет имя/комментарий.
+Если `device_id` ранее был привязан к другой лицензии — та освобождается автоматически.
+
+**Запрос:**
 ```json
 {
-  "key":          "ABCD-1234-EFGH",
-  "device_id":    "уникальный-id-устройства",
-  "device_name":  "Имя компьютера (необязательно)",
-  "comment":      "Произвольный комментарий (необязательно)",
-  "key_version":  1
+  "key":         "ABCD-1234-EFGH",
+  "device_id":   "550e8400-e29b-41d4-a716-446655440000",
+  "device_name": "Ноутбук Иванова",
+  "comment":     "Бухгалтерия",
+  "key_version": 1
 }
 ```
+`device_name`, `comment`, `key_version` — необязательны.
 
-Ответ 200 — лицензия активирована:
+**Ответ 200:** общий блок данных лицензии (см. ниже) + `"status": "ok"`.
+
+**Ошибки:**
+
+| HTTP | Код                | Описание                                           |
+|------|--------------------|----------------------------------------------------|
+| 404  | `LICENSE_NOT_FOUND`| Ключ не существует                                 |
+| 403  | `LICENSE_BLOCKED`  | Заблокирована (`reason` — причина в поле `reason`) |
+| 403  | `LICENSE_EXPIRED`  | Срок истёк                                         |
+| 409  | `VERSION_MISMATCH` | `key_version` устарел — нужен актуальный ключ      |
+| 409  | `DEVICE_MISMATCH`  | Уже активирована на другом устройстве              |
+
+---
+
+### POST /api/verify — проверка лицензии (read-only)
+
+Периодическая валидация: «эта лицензия активна именно на моём устройстве?»
+Не меняет состояние. Используется при каждом запуске приложения или по расписанию.
+
+**Запрос:**
+```json
+{ "key": "ABCD-1234-EFGH", "device_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+**Ответ 200 (валидна):**
+```json
+{ "status": "ok", "valid": true, "license_id": 42, "expires_at": "2027-03-01T00:00:00", ... }
+```
+
+**Ответ при ошибке** всегда содержит `"valid": false` и полный блок данных лицензии:
+```json
+{ "status": "error", "code": "DEVICE_MISMATCH", "valid": false, "license_id": 42, ... }
+```
+
+**Ошибки:**
+
+| HTTP | Код                | Описание                                           |
+|------|--------------------|----------------------------------------------------|
+| 404  | `LICENSE_NOT_FOUND`| Ключ не существует                                 |
+| 403  | `LICENSE_BLOCKED`  | Заблокирована                                      |
+| 403  | `LICENSE_EXPIRED`  | Срок истёк                                         |
+| 409  | `NOT_ACTIVATED`    | Лицензия не активирована ни на одном устройстве    |
+| 409  | `DEVICE_MISMATCH`  | Активирована на другом устройстве                  |
+
+---
+
+### POST /api/deactivate — освобождение лицензии
+
+После вызова статус → `released`. Лицензию можно активировать на другом устройстве.
+
+**Запрос:**
+```json
+{ "key": "ABCD-1234-EFGH", "device_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+**Ответ 200:**
+```json
+{ "status": "ok", "code": "DEACTIVATED", "message": "Лицензия освобождена" }
+```
+
+**Ошибки:** `LICENSE_NOT_FOUND` (404), `LICENSE_BLOCKED` (403), `NOT_ACTIVATED` (409), `DEVICE_MISMATCH` (409)
+
+---
+
+### POST /api/transfer — перенос на новое устройство
+
+Аннулирует текущий ключ, генерирует новый. Вызывать с того устройства, где сейчас активирована лицензия. После — сохранить `new_key`, старый ключ недействителен.
+
+**Запрос:**
+```json
+{ "key": "ABCD-1234-EFGH", "device_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+**Ответ 200:**
+```json
+{ "status": "ok", "new_key": "XXXX-YYYY-ZZZZ", "license_id": 42, "version": 2, ... }
+```
+
+**Ошибки:** `LICENSE_NOT_FOUND` (404), `LICENSE_BLOCKED` (403), `LICENSE_EXPIRED` (403), `NOT_ACTIVATED` (409), `DEVICE_MISMATCH` (409)
+
+---
+
+### GET /api/status?key=ABCD-1234-EFGH — текущее состояние (read-only)
+
+Не требует `device_id`. Для информационного отображения.
+
+**Ответ 200:** общий блок данных лицензии.
+
+---
+
+### GET /api/history?key=ABCD-1234-EFGH — история
+
+Возвращает массивы `keys` (история ключей) и `actions` (история событий).
+
+---
+
+## Общий блок данных лицензии
+
+Большинство ответов содержат эти поля:
+
 ```json
 {
-  "status":       "activated",
   "license_id":   42,
   "organization": "ООО Пример",
-  "description":  "Описание лицензии",
-  "activated_at": "2026-01-15T10:30:00",
-  "expires_at":   "2027-01-15T00:00:00",
+  "description":  "Основная лицензия",
+  "status":       "activated",
+  "activated_at": "2026-03-01T09:00:00",
+  "expires_at":   "2027-03-01T00:00:00",
   "version":      1,
-  "device_id":    "уникальный-id-устройства",
-  "device_name":  "Имя компьютера"
+  "device_id":    "550e8400-e29b-41d4-a716-446655440000",
+  "device_name":  "Ноутбук Иванова",
+  "logo_url":     "/owner/clients/5/logo"
 }
 ```
 
-Коды ошибок (поле `code` в теле ответа):
-- `LICENSE_NOT_FOUND` (404) — ключ не найден
-- `LICENSE_BLOCKED` (403) — лицензия заблокирована
-- `LICENSE_EXPIRED` (403) — истёк срок действия
-- `DEVICE_MISMATCH` (409) — уже активирована на другом устройстве
-- `VERSION_MISMATCH` (409) — устаревшая версия ключа
+`expires_at` = `"permanent"` если лицензия бессрочная.
+`logo_url` = `null` если логотип не загружен.
 
-### POST /api/deactivate
-Освобождение лицензии с устройства. После — статус `released`.
+---
 
-```json
-{ "key": "ABCD-1234-EFGH", "device_id": "уникальный-id-устройства" }
-```
+## Иерархия исключений (рекомендуется реализовать)
 
-Коды ошибок: `LICENSE_NOT_FOUND`, `LICENSE_BLOCKED`, `NOT_ACTIVATED`, `DEVICE_MISMATCH`
-
-### POST /api/transfer
-Перенос лицензии: текущий ключ деактивируется, возвращается новый.
-Вызывать с device_id того устройства, с которого переносим.
-
-```json
-{ "key": "ABCD-1234-EFGH", "device_id": "текущий-device-id" }
-```
-
-Ответ содержит поле `new_key` — новый ключ для активации на другом устройстве.
-
-### GET /api/status?key=ABCD-1234-EFGH
-Текущее состояние лицензии (только чтение). Не требует device_id.
-
-### GET /api/history?key=ABCD-1234-EFGH
-История ключей и событий лицензии.
-
-## Что нужно реализовать
-
-### 1. Пакет `liclient/`
-
-```
-liclient/
-  __init__.py
-  client.py      — основной класс LicenseClient
-  device.py      — получение уникального device_id
-  storage.py     — хранение ключа и статуса локально (JSON-файл)
-  exceptions.py  — иерархия исключений
-  signing.py     — HMAC-подпись (скопировать пример выше)
-```
-
-**`LicenseClient`** должен предоставлять:
 ```python
-class LicenseClient:
-    def __init__(self, base_url: str, api_secret: str, key: str): ...
-
-    def activate(self, device_name: str | None = None) -> dict:
-        """Активировать лицензию. Возвращает info-словарь или raises."""
-
-    def deactivate(self) -> dict:
-        """Деактивировать лицензию (освободить для переноса)."""
-
-    def transfer(self) -> str:
-        """Перенести лицензию, вернуть новый ключ."""
-
-    def status(self) -> dict:
-        """Получить текущий статус (только чтение)."""
-
-    def is_valid(self) -> bool:
-        """True если лицензия activated и не expired."""
+LicenseServerError          # базовое — все ошибки сервера
+├── SignatureError           # 401: TIMESTAMP_EXPIRED, NONCE_REUSED, INVALID_SIGNATURE
+├── LicenseNotFound         # 404: LICENSE_NOT_FOUND
+├── LicenseBlocked          # 403: LICENSE_BLOCKED (атрибут .reason)
+├── LicenseExpired          # 403: LICENSE_EXPIRED
+├── NotActivated            # 409: NOT_ACTIVATED
+├── DeviceMismatch          # 409: DEVICE_MISMATCH
+└── VersionMismatch         # 409: VERSION_MISMATCH
 ```
 
-**Обработка ошибок:**
-- `LicenseNotFound` — ключ не найден
-- `LicenseBlocked` — заблокирован (показать сообщение с причиной)
-- `LicenseExpired` — истёк срок
-- `DeviceMismatch` — активирован на другом устройстве
-- `VersionMismatch` — устаревшая версия, нужно получить актуальный ключ
-- `LicenseServerError` — прочие ошибки сервера
+Не делайте retry при 4xx — это логические ошибки, не сетевые.
 
-**`device.py`** — получение стабильного device_id:
-- Windows: `winreg` MachineGuid или `wmi` UUID
-- Linux: `/etc/machine-id` или `dmidecode`
-- macOS: `IOPlatformUUID` через `system_profiler`
-- Fallback: SHA256 от hostname + MAC-адреса
+---
 
-**`storage.py`** — локальный JSON-файл `~/.liclient/{app_name}.json`:
-```json
-{
-  "key": "ABCD-1234-EFGH",
-  "activated": true,
-  "device_id": "...",
-  "last_check": "2026-01-15T10:30:00",
-  "expires_at": "2027-01-15T00:00:00",
-  "license_id": 42
-}
+## Device ID — требования
+
+- **Стабильный** между запусками (одно устройство = один ID всегда).
+- **Уникальный** между разными устройствами.
+- Рекомендуемые источники:
+  - Windows: `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (winreg)
+  - Linux: `/etc/machine-id`
+  - macOS: `IOPlatformUUID` через `ioreg -rd1 -c IOPlatformExpertDevice`
+  - Fallback: SHA256 от `hostname + MAC-адрес основного интерфейса`
+
+---
+
+## Типичный жизненный цикл в приложении
+
+```
+1. Первый запуск:
+   - Пользователь вводит ключ
+   - POST /api/activate → сохранить ключ и данные локально
+   - При DEVICE_MISMATCH: предложить transfer с оригинального устройства
+
+2. Каждый запуск:
+   - POST /api/verify
+   - valid=true → продолжить работу
+   - DEVICE_MISMATCH / BLOCKED / EXPIRED → заблокировать функционал, показать причину
+
+3. Смена устройства:
+   - На старом устройстве: POST /api/transfer → получить new_key
+   - Передать new_key пользователю (показать, скопировать, отправить)
+   - На новом устройстве: POST /api/activate с new_key
+
+4. Деактивация (опционально):
+   - POST /api/deactivate — если пользователь явно уходит с устройства
 ```
 
-### 2. Демо-приложение `demo.py`
+---
 
-CLI на `click` или `argparse`:
+## Хранение секрета API_SECRET
+
+- Никогда не хардкодить в исходном коде.
+- Python-приложение: переменная окружения `LICENSE_API_SECRET`.
+- Flutter: `flutter_secure_storage` (iOS Keychain / Android Keystore).
+- Desktop: системное хранилище секретов (keyring, Credential Manager).
+
+---
+
+## Отключение подписи (только dev/тесты)
+
+Сервер поддерживает отключение проверки в `config/security.cfg`:
+```ini
+[api_signing]
+enabled = false
 ```
-python demo.py activate ABCD-1234-EFGH --server http://localhost:8000 --secret MY_SECRET
-python demo.py status
-python demo.py deactivate
-python demo.py transfer
-```
-
-### 3. Конфигурация
-
-`liclient/config.py` — читает из:
-1. Переменных окружения: `LICENSE_SERVER_URL`, `LICENSE_API_SECRET`
-2. Файла `~/.liclient/config.ini` (секция `[server]`)
-3. Параметров конструктора `LicenseClient(base_url=..., api_secret=...)`
-
-### 4. Требования к коду
-
-- Python 3.10+
-- HTTP-клиент: `httpx` (sync) или `requests`
-- Тайм-аут запроса: 10 секунд
-- Retry: 3 попытки с экспоненциальной задержкой для сетевых ошибок (не для 4xx)
-- Логирование через `logging` (не `print`)
-- Type hints везде
-- `pyproject.toml` или `setup.py`
-
-### 5. Тесты (`tests/`)
-
-- `test_signing.py` — проверка HMAC-подписи
-- `test_client.py` — тесты через `httpx.MockTransport` или `responses`
-- `test_device.py` — тест получения device_id (мокировать платформо-зависимые вызовы)
-
-### 6. README.md
-
-- Установка (`pip install -e .`)
-- Быстрый старт (3 команды)
-- Пример использования в коде Python
-- Формат конфигурации
-- Обработка ошибок (таблица исключений)
-
-## Ограничения
-
-- Не храни API_SECRET в коде — только через переменные окружения или конфиг-файл
-- device_id должен быть стабильным (одинаковым при повторных запусках)
-- При `DeviceMismatch` сообщить пользователю, что для переноса нужно использовать `transfer` с оригинального устройства
-- Не делай автоматических retry при 409/403 — это логические ошибки, не сетевые
-
-## Что НЕ нужно реализовывать
-
-- Веб-интерфейс
-- База данных на стороне клиента (только JSON-файл)
-- Offline-режим (лицензия требует подключения к серверу)
+В тестах переопределяйте dependency `verify_api_signature` через `dependency_overrides`.
 ```
