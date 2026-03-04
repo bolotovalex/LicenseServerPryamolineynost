@@ -132,7 +132,6 @@ async def activate(
         return JSONResponse(status_code=404, content=_err("Лицензия не найдена", "LICENSE_NOT_FOUND"))
 
     client = await db.get(Client, lic.client_id)
-    info = _license_info(lic, client)
 
     if lic.is_blocked:
         await _log_api_error(db, request, "activate", "LICENSE_BLOCKED", data.device_id, ip, lic.id)
