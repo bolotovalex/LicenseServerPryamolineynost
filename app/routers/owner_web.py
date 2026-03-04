@@ -312,6 +312,14 @@ async def client_update_info(
     if not client:
         raise HTTPException(404)
 
+    # Считаем активные (не удалённые) лицензии до сохранения
+    total_active = (await db.execute(
+        select(func.count(License.id)).where(
+            License.client_id == client_id,
+            License.deleted_at.is_(None),
+        )
+    )).scalar_one()
+
     client.org_name      = org_name
     client.notes         = notes or None
     client.contact_email = contact_email or None
@@ -319,16 +327,12 @@ async def client_update_info(
     client.key_ttl_days  = int(key_ttl_days) if key_ttl_days else None
     await db.commit()
 
-    # Предупреждение при превышении квоты
-    total = (await db.execute(
-        select(func.count(License.id)).where(License.client_id == client_id)
-    )).scalar_one()
-    if total > max_keys:
-        over = total - max_keys
+    if total_active > max_keys:
+        over = total_active - max_keys
         return _flash(
             f"/owner/clients/{client_id}",
-            f"Информация обновлена. Внимание: выпущено {total} лицензий при лимите {max_keys} — "
-            f"{over} шт. превышают квоту. Заблокируйте лишние.",
+            f"Квота уменьшена до {max_keys}. Выпущено {total_active} лицензий — "
+            f"{over} шт. превышают квоту. Заблокируйте лишние через меню ⋮",
             "warn",
         )
     return _flash(f"/owner/clients/{client_id}", "Информация обновлена")
