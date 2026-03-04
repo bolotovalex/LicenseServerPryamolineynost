@@ -270,9 +270,6 @@
               {{ lic.description or '—' }}
             </td>
             <td class="right" style="white-space:nowrap">
-              <button type="button" class="btn small ghost"
-                      data-open-actions="{{ (actions_payloads or {})[lic.id] | tojson }}"
-                      title="История действий">&#128221;</button>
               <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode"
                  target="_blank" title="QR-код">QR</a>
               <details class="row-actions">
