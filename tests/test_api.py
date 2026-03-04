@@ -190,3 +190,59 @@ async def test_history_returns_actions(api_client, db_session):
 async def test_history_not_found(api_client, db_session):
     resp = await api_client.get("/api/history", params={"key": "XXXX-YYYY-ZZZZ"})
     assert resp.status_code == 404
+
+
+# ── device swap & error logging ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_activate_device_swap(api_client, db_session):
+    """Сценарий 3: устройство переключается на новый ключ — старый освобождается."""
+    from sqlalchemy import select
+    from app.models import License
+
+    _, lic1 = await make_client_with_license(db_session, login="org-swap-1")
+    _, lic2 = await make_client_with_license(db_session, login="org-swap-2")
+    lic1_id, lic1_key = lic1.id, lic1.key
+    lic2_id, lic2_key = lic2.id, lic2.key
+
+    # Активируем lic1 на dev-swap
+    r = await api_client.post("/api/activate", json={"key": lic1_key, "device_id": "dev-swap"})
+    assert r.status_code == 200
+
+    # Активируем lic2 тем же dev-swap — lic1 должен освободиться
+    r = await api_client.post("/api/activate", json={"key": lic2_key, "device_id": "dev-swap"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "activated"
+
+    db_session.expire_all()
+    fresh1 = (await db_session.execute(select(License).where(License.id == lic1_id))).scalar_one()
+    fresh2 = (await db_session.execute(select(License).where(License.id == lic2_id))).scalar_one()
+
+    assert fresh1.status == "released", "старый ключ должен стать released"
+    assert fresh1.device_id is None,    "device_id старого ключа должен быть очищен"
+    assert fresh2.status == "activated","новый ключ должен быть активирован"
+    assert fresh2.device_id == "dev-swap"
+
+
+@pytest.mark.asyncio
+async def test_error_logging_blocked(api_client, db_session):
+    """Сценарий 4: попытка активировать заблокированный ключ создаёт LicenseAction."""
+    from sqlalchemy import select
+    from app.models import LicenseAction
+
+    _, lic = await make_client_with_license(db_session, is_blocked=True)
+    lic_id = lic.id
+
+    resp = await api_client.post("/api/activate", json={"key": lic.key, "device_id": "dev-001"})
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "LICENSE_BLOCKED"
+
+    db_session.expire_all()
+    actions = (await db_session.execute(
+        select(LicenseAction).where(
+            LicenseAction.license_id == lic_id,
+            LicenseAction.action == "activate",
+            LicenseAction.reason == "LICENSE_BLOCKED",
+        )
+    )).scalars().all()
+    assert len(actions) == 1, "должна быть записана одна LicenseAction с reason=LICENSE_BLOCKED"

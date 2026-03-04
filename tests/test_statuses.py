@@ -7,7 +7,8 @@ import datetime as dt
 import pytest
 from sqlalchemy import select
 
-from app.models import License, LicenseKey
+from app.models import AdminUser, Client, License, LicenseKey
+from app.security import hash_password
 from tests.conftest import make_client_with_license
 
 
@@ -166,6 +167,42 @@ async def test_org_reset_blocked_license_forbidden(api_client, db_session):
     )).scalar_one()
     assert fresh.key == old_key, "ключ не должен был смениться"
     assert fresh.version == 1,   "версия не должна была увеличиться"
+
+
+@pytest.mark.asyncio
+async def test_restore_deleted_client(api_client, db_session):
+    """Soft-deleted клиент восстанавливается через POST /owner/clients/{id}/restore."""
+    # Создаём admin-пользователя и логинимся
+    admin = AdminUser(
+        email="admin@test.com",
+        password_hash=hash_password("AdminPass1!"),
+        role="superadmin",
+        is_active=True,
+    )
+    db_session.add(admin)
+    await db_session.commit()
+
+    r = await api_client.post("/login", data={"login": "admin@test.com", "password": "AdminPass1!"})
+    assert r.status_code in (200, 303)
+
+    # Создаём клиента и soft-delete через эндпоинт
+    org, _ = await make_client_with_license(db_session, login="to-restore")
+    client_id = org.id
+
+    r = await api_client.post(f"/owner/clients/{client_id}/delete")
+    assert r.status_code in (200, 303)
+
+    db_session.expire_all()
+    deleted = await db_session.get(Client, client_id)
+    assert deleted.deleted_at is not None, "клиент должен быть помечен как удалённый"
+
+    # Восстанавливаем
+    r = await api_client.post(f"/owner/clients/{client_id}/restore")
+    assert r.status_code in (200, 303)
+
+    db_session.expire_all()
+    restored = await db_session.get(Client, client_id)
+    assert restored.deleted_at is None, "deleted_at должен быть None после восстановления"
 
 
 @pytest.mark.asyncio

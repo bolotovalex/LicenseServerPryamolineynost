@@ -18,9 +18,8 @@ from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.audit import log_action
 from app.db import get_session
-from sqlalchemy.orm import selectinload
-
 from app.models import AdminUser, AuditLog, Client, Feedback, FeedbackMessage, License, LicenseAction, LicenseKey
 from app.password import generate_password, validate_password
 from app.security import hash_password, require_owner, verify_password

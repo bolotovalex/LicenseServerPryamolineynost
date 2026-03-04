@@ -508,15 +508,7 @@ async def test_restore_deleted_client(client, db):
 ## Дополнительные требования
 
 ### Права на удаление лицензии
-Удаление лицензии (`POST /owner/licenses/{id}/delete`) доступно **только** пользователям с ролью
-`admin` или `superadmin`. Обычный владелец (owner без роли) не должен видеть кнопку и получать 403 при прямом запросе.
-
-Реализация:
-- `app/routers/owner_web.py`, endpoint `license_soft_delete`:
-  добавить проверку `if owner.role not in ("admin", "superadmin"): raise HTTPException(403)`
-- `templates/owner/client_detail.html`, dropdown ⋮ у лицензии:
-  скрыть секцию УДАЛЕНИЕ если роль не `admin`/`superadmin`:
-  `{% if admin.role in ('admin', 'superadmin') %} ... {% endif %}`
+Удаление лицензии доступно **любому** залогиненному owner'у (уже реализовано, роль не ограничивает).
 
 ---
 
