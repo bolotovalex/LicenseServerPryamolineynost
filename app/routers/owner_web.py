@@ -18,9 +18,14 @@ from sqlalchemy import delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+<<<<<<< HEAD
 from app.audit import log_action
 from app.db import get_session
 from app.models import AdminUser, AuditLog, Client, Feedback, FeedbackMessage, License, LicenseAction, LicenseKey
+=======
+from app.db import get_session
+from app.models import AdminUser, AuditLog, Client, Feedback, License, LicenseAction, LicenseKey
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 from app.password import generate_password, validate_password
 from app.security import hash_password, require_owner, verify_password
 from app.utils import generate_license_key, make_qr_png
@@ -96,6 +101,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_session)):
 # ── clients ───────────────────────────────────────────────────────────────────
 
 @router.get("/clients", response_class=HTMLResponse)
+<<<<<<< HEAD
 async def clients_list(
     request:      Request,
     db:           AsyncSession = Depends(get_session),
@@ -109,6 +115,14 @@ async def clients_list(
         q = q.where(Client.deleted_at.is_(None))
     clients = (await db.execute(q)).scalars().all()
     ctx = await _ctx(request, owner, db, clients=clients, show_deleted=show_deleted)
+=======
+async def clients_list(request: Request, db: AsyncSession = Depends(get_session)):
+    owner   = await require_owner(request, db)
+    clients = (await db.execute(
+        select(Client).order_by(Client.id).options(selectinload(Client.licenses))
+    )).scalars().all()
+    ctx     = await _ctx(request, owner, db, clients=clients)
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     return templates.TemplateResponse("owner/client_list.html", ctx)
 
 
@@ -178,12 +192,15 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         .order_by(desc(License.issued_at))
     )).scalars().all()
 
+<<<<<<< HEAD
     deleted_licenses = (await db.execute(
         select(License)
         .where(License.client_id == client_id, License.deleted_at.isnot(None))
         .order_by(desc(License.deleted_at))
     )).scalars().all()
 
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     # История ключей для модалки
     keys_payloads = {
         lic.id: [
@@ -207,14 +224,18 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
     # Блок 4: журнал (LicenseAction + AuditLog)
     license_ids = [l.id for l in licenses]
     log_entries: list[dict] = []
+<<<<<<< HEAD
     lic_key: dict = {}
     actions_payloads: dict = {}
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
     if license_ids:
         actions = (await db.execute(
             select(LicenseAction)
             .where(LicenseAction.license_id.in_(license_ids))
             .order_by(desc(LicenseAction.at))
+<<<<<<< HEAD
             .limit(200)
         )).scalars().all()
 
@@ -245,6 +266,22 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
                 "ip":         None,
                 "success":    True,
                 "source":     "action",
+=======
+            .limit(50)
+        )).scalars().all()
+
+        lic_desc = {l.id: l.description for l in licenses}
+        for a in actions:
+            log_entries.append({
+                "at":     a.at,
+                "action": a.action,
+                "desc":   f"#{a.license_id} {lic_desc.get(a.license_id, '')}",
+                "reason": a.reason,
+                "actor":  None,
+                "ip":     None,
+                "success": True,
+                "source": "action",
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             })
 
         audit_rows = (await db.execute(
@@ -256,6 +293,7 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
 
         for a in audit_rows:
             log_entries.append({
+<<<<<<< HEAD
                 "at":         a.at,
                 "action":     a.action,
                 "license_id": a.entity_id,
@@ -265,6 +303,16 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
                 "ip":         a.ip_address,
                 "success":    a.success,
                 "source":     "audit",
+=======
+                "at":     a.at,
+                "action": a.action,
+                "desc":   a.details or "",
+                "reason": None,
+                "actor":  a.actor_login or a.actor_type,
+                "ip":     a.ip_address,
+                "success": a.success,
+                "source": "audit",
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             })
 
     log_entries.sort(key=lambda x: x["at"], reverse=True)
@@ -287,6 +335,7 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         client=client,
         licenses=licenses,
         keys_payloads=keys_payloads,
+<<<<<<< HEAD
         actions_payloads=actions_payloads,
         total_keys=total_keys,
         available=available,
@@ -296,6 +345,14 @@ async def client_detail(request: Request, client_id: int, db: AsyncSession = Dep
         creator=creator,
         default_expires=default_expires,
         lic_key=lic_key,
+=======
+        total_keys=total_keys,
+        available=available,
+        max_allowed=max_allowed,
+        log_entries=log_entries,
+        creator=creator,
+        default_expires=default_expires,
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     )
     return templates.TemplateResponse("owner/client_detail.html", ctx)
 
@@ -318,6 +375,7 @@ async def client_update_info(
     if not client:
         raise HTTPException(404)
 
+<<<<<<< HEAD
     # Считаем активные (не удалённые) лицензии до сохранения
     total_active = (await db.execute(
         select(func.count(License.id)).where(
@@ -326,12 +384,15 @@ async def client_update_info(
         )
     )).scalar_one()
 
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     client.org_name      = org_name
     client.notes         = notes or None
     client.contact_email = contact_email or None
     client.max_keys      = max_keys
     client.key_ttl_days  = int(key_ttl_days) if key_ttl_days else None
     await db.commit()
+<<<<<<< HEAD
 
     if total_active > max_keys:
         over = total_active - max_keys
@@ -341,6 +402,8 @@ async def client_update_info(
             f"{over} шт. превышают квоту. Заблокируйте лишние через меню ⋮",
             "warn",
         )
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     return _flash(f"/owner/clients/{client_id}", "Информация обновлена")
 
 
@@ -417,6 +480,7 @@ async def client_activate(request: Request, client_id: int, db: AsyncSession = D
 
 @router.post("/clients/{client_id}/delete")
 async def client_delete(request: Request, client_id: int, db: AsyncSession = Depends(get_session)):
+<<<<<<< HEAD
     owner = await require_owner(request, db)
     client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one_or_none()
     if not client or client.deleted_at is not None:
@@ -470,6 +534,8 @@ async def client_generate_keys(
     expires_at:  str = Form(""),
     db: AsyncSession = Depends(get_session),
 ):
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     await require_owner(request, db)
     client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one_or_none()
     if not client:
@@ -499,6 +565,47 @@ async def client_generate_keys(
         new_lics.append(lic)
 
     await db.commit()
+<<<<<<< HEAD
+=======
+    return _flash("/owner/clients", "Клиент удалён")
+
+
+@router.post("/clients/{client_id}/generate")
+async def client_generate_keys(
+    request: Request,
+    client_id:   int,
+    count:       int = Form(1),
+    description: str = Form(...),
+    expires_at:  str = Form(""),
+    db: AsyncSession = Depends(get_session),
+):
+    await require_owner(request, db)
+    client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one_or_none()
+    if not client:
+        raise HTTPException(404)
+
+    total     = (await db.execute(select(func.count(License.id)).where(License.client_id == client_id))).scalar_one()
+    available = max(0, client.max_keys - total)
+
+    if count < 1 or count > 50:
+        return _flash(f"/owner/clients/{client_id}", "Количество должно быть от 1 до 50", "error")
+    if count > available:
+        return _flash(f"/owner/clients/{client_id}", f"Квота исчерпана (доступно {available} из {client.max_keys})", "error")
+
+    exp       = dt.datetime.fromisoformat(expires_at) if expires_at else None
+    new_lics  = []
+
+    for _ in range(count):
+        key = generate_license_key()
+        lic = License(client_id=client_id, version=1, key=key, expires_at=exp, description=description)
+        db.add(lic)
+        await db.flush()
+        db.add(LicenseKey(license_id=lic.id, key=key, is_active=True))
+        db.add(LicenseAction(license_id=lic.id, action="issue"))
+        new_lics.append(lic)
+
+    await db.commit()
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
     if client.contact_email:
         from app.email import notify_key_issued
@@ -689,6 +796,7 @@ async def license_qr(request: Request, license_id: int, db: AsyncSession = Depen
     return Response(content=make_qr_png(lic.key), media_type="image/png")
 
 
+<<<<<<< HEAD
 @router.post("/licenses/{license_id}/delete")
 async def license_soft_delete(
     request: Request,
@@ -710,6 +818,8 @@ async def license_soft_delete(
     return _flash(f"/owner/clients/{lic.client_id}", "Лицензия удалена")
 
 
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 # ── администраторы (только superadmin) ───────────────────────────────────────
 
 @router.get("/admins", response_class=HTMLResponse)
@@ -899,6 +1009,7 @@ async def feedback_list(
 @router.get("/feedback/{feedback_id}", response_class=HTMLResponse)
 async def feedback_detail(request: Request, feedback_id: int, db: AsyncSession = Depends(get_session)):
     owner = await require_owner(request, db)
+<<<<<<< HEAD
     fb    = (await db.execute(
         select(Feedback)
         .options(selectinload(Feedback.messages))
@@ -907,6 +1018,13 @@ async def feedback_detail(request: Request, feedback_id: int, db: AsyncSession =
     if not fb:
         raise HTTPException(404)
 
+=======
+    fb    = (await db.execute(select(Feedback).where(Feedback.id == feedback_id))).scalar_one_or_none()
+    if not fb:
+        raise HTTPException(404)
+
+    # Отмечаем как прочитанное при открытии
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     if fb.status == "new":
         fb.status = "read"
         await db.commit()
@@ -915,6 +1033,7 @@ async def feedback_detail(request: Request, feedback_id: int, db: AsyncSession =
     return templates.TemplateResponse("owner/feedback_detail.html", ctx)
 
 
+<<<<<<< HEAD
 @router.post("/feedback/{feedback_id}/reply")
 async def feedback_reply(
     request:     Request,
@@ -953,6 +1072,8 @@ async def feedback_reply(
     return _flash(f"/owner/feedback/{feedback_id}", "Ответ отправлен")
 
 
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 @router.post("/feedback/{feedback_id}/update")
 async def feedback_update(
     request:     Request,
@@ -1085,7 +1206,11 @@ async def backup_create(request: Request, db: AsyncSession = Depends(get_session
     await require_owner(request, db)
     from app.services.backup import create_backup
     data = await create_backup(db)
+<<<<<<< HEAD
     ts   = dt.datetime.now(dt.UTC).strftime("%Y%m%d_%H%M%S")
+=======
+    ts   = dt.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     (BACKUP_DIR / f"backup_{ts}.json").write_bytes(data)
     return _flash("/owner/backup", "Резервная копия создана")
 

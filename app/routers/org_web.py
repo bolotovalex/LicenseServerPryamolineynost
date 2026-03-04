@@ -7,20 +7,32 @@ import datetime as dt
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
+<<<<<<< HEAD
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
+=======
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import desc, select
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import log_action
 from app.db import get_session
+<<<<<<< HEAD
 from sqlalchemy.orm import selectinload
 
 from app.models import Client, Feedback, FeedbackMessage, License, LicenseAction, LicenseKey
 from app.password import validate_password
 from app.security import get_current_org, hash_password, verify_password
 from app.utils import generate_license_key
+=======
+from app.models import Client, Feedback, License, LicenseAction
+from app.password import validate_password
+from app.security import get_current_org, hash_password, verify_password
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
 router    = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -96,6 +108,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_session)):
     return templates.TemplateResponse("org/dashboard.html", ctx)
 
 
+<<<<<<< HEAD
 @router.post("/licenses/generate")
 async def org_license_generate(
     request:     Request,
@@ -174,6 +187,10 @@ async def org_license_edit(
 
 @router.post("/licenses/{license_id}/reset")
 async def org_license_reset(
+=======
+@router.post("/licenses/{license_id}/deactivate")
+async def license_deactivate(
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     request:    Request,
     license_id: int,
     db: AsyncSession = Depends(get_session),
@@ -182,6 +199,10 @@ async def org_license_reset(
     if redir:
         return redir
 
+<<<<<<< HEAD
+=======
+    # Строго: только лицензия данной организации
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     lic = (await db.execute(
         select(License).where(
             License.id == license_id,
@@ -191,6 +212,7 @@ async def org_license_reset(
 
     if not lic:
         return _flash("/org/dashboard", "Лицензия не найдена", "error")
+<<<<<<< HEAD
 
     now = dt.datetime.now(dt.UTC)
     st  = lic.computed_status(now)
@@ -230,14 +252,34 @@ async def org_license_reset(
         db=db,
         actor_type="org",
         action="license_reset",
+=======
+    if not lic.activated_at:
+        return _flash("/org/dashboard", "Лицензия не активирована", "error")
+
+    lic.activated_at       = None
+    lic.device_id          = None
+    lic.activation_payload = None
+    lic.version            = (lic.version or 1) + 1
+
+    db.add(LicenseAction(license_id=lic.id, action="deactivate"))
+    await log_action(
+        db=db,
+        actor_type="org",
+        action="deactivate",
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         actor_id=org.id,
         actor_login=org.login,
         entity_type="license",
         entity_id=lic.id,
+<<<<<<< HEAD
+=======
+        details={"license_id": lic.id, "key_prefix": lic.key[:8] if lic.key else ""},
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         success=True,
         request=request,
     )
     await db.commit()
+<<<<<<< HEAD
     return _flash("/org/dashboard", "Ключ сброшен — скопируйте новый ключ для активации")
 
 
@@ -270,6 +312,9 @@ async def org_license_history(
         }
         for a in actions[:30]
     ])
+=======
+    return _flash("/org/dashboard", "Лицензия деактивирована. Повторная активация доступна на любом устройстве.")
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
 
 # ── профиль ───────────────────────────────────────────────────────────────────
@@ -330,7 +375,10 @@ async def feedback_list(request: Request, db: AsyncSession = Depends(get_session
 
     items = (await db.execute(
         select(Feedback)
+<<<<<<< HEAD
         .options(selectinload(Feedback.messages))
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         .where(Feedback.entity_type == "org", Feedback.entity_id == org.id)
         .order_by(desc(Feedback.created_at))
     )).scalars().all()
@@ -365,6 +413,7 @@ async def feedback_new(
     ))
     await db.commit()
     return _flash("/org/feedback", "Обращение отправлено. Мы ответим в ближайшее время.")
+<<<<<<< HEAD
 
 
 @router.get("/feedback/{feedback_id}", response_class=HTMLResponse)
@@ -443,3 +492,5 @@ async def feedback_reply(
         )
 
     return _flash(f"/org/feedback/{feedback_id}", "Ответ отправлен")
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90

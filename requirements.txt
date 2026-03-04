@@ -1,9 +1,12 @@
 aiosqlite==0.21.0
+<<<<<<< HEAD
 # Тестирование:
 # pytest pytest-asyncio httpx
 # Опциональные async-драйверы для других СУБД:
 # asyncpg==0.30.0      # PostgreSQL (раскомментируйте при db_type=postgres)
 # aiomysql==0.2.0      # MariaDB/MySQL (раскомментируйте при db_type=mariadb)
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 aiosmtplib==5.1.0
 annotated-types==0.7.0
 anyio==4.10.0

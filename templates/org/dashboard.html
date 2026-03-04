@@ -2,6 +2,7 @@
 {% block title %}Лицензии — {{ org.org_name }}{% endblock %}
 
 {% block content %}
+<<<<<<< HEAD
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
   <h1 style="margin:0;font-size:22px">Мои лицензии</h1>
   {% set quota_left = org.max_keys - stats_total %}
@@ -9,6 +10,9 @@
     <button type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
   {% endif %}
 </div>
+=======
+<h1 style="margin:0 0 20px;font-size:22px">Мои лицензии</h1>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
 <!-- Статистика -->
 <div class="stat-bar">
@@ -30,6 +34,7 @@
   </div>
 </div>
 
+<<<<<<< HEAD
 <!-- Форма выпуска лицензии (скрыта по умолчанию) -->
 {% set quota_left = org.max_keys - stats_total %}
 {% if quota_left > 0 %}
@@ -63,6 +68,13 @@
       Лицензий пока нет.
       {% if quota_left > 0 %}Нажмите «Выпустить лицензию» выше.
       {% else %}Обратитесь к вашему менеджеру.{% endif %}
+=======
+<!-- Таблица лицензий -->
+<div class="org-card" style="padding:0;overflow:hidden">
+  {% if not licenses %}
+    <div style="padding:40px;text-align:center;color:#94a3b8">
+      Лицензий пока нет. Обратитесь к вашему менеджеру.
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     </div>
   {% else %}
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
@@ -80,8 +92,12 @@
       </thead>
       <tbody>
       {% for lic in licenses %}
+<<<<<<< HEAD
         {% set st = lic.computed_status(now) %}
         {% set is_expired = st == 'expired' %}
+=======
+        {% set is_expired = lic.expires_at and lic.expires_at < now %}
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
 
           <!-- Ключ -->
@@ -92,15 +108,27 @@
 
           <!-- Статус -->
           <td style="white-space:nowrap">
+<<<<<<< HEAD
             {% if st == 'blocked' %}<span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
             {% elif st == 'expired' %}<span class="badge gray">Истёк</span>
             {% elif st == 'activated' %}<span class="badge success">Активирован</span>
             {% elif st == 'released' %}<span class="badge warn">Освобождён</span>
             {% else %}<span class="badge new">Не активирован</span>
+=======
+            {% if lic.is_blocked %}
+              <span class="badge danger" title="{{ lic.block_reason or '' }}">заблокирован</span>
+            {% elif is_expired %}
+              <span class="badge gray">истёк</span>
+            {% elif lic.activated_at %}
+              <span class="badge success">активен</span>
+            {% else %}
+              <span class="badge new">не активирован</span>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             {% endif %}
           </td>
 
           <!-- Устройство -->
+<<<<<<< HEAD
           <td style="font-size:12px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ (lic.device_name or '') + (' · ' + lic.device_id if lic.device_id else '') }}">
             {% if lic.device_name %}
@@ -110,6 +138,11 @@
             {% else %}
               —
             {% endif %}
+=======
+          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
+              style="font-size:12px;color:#64748b">
+            {{ lic.device_id or '—' }}
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
           </td>
 
           <!-- Активирован -->
@@ -131,8 +164,13 @@
           </td>
 
           <!-- Описание -->
+<<<<<<< HEAD
           <td style="font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
               title="{{ lic.description or '' }}">
+=======
+          <td class="ellipsis w-280" title="{{ lic.description or '' }}"
+              style="font-size:13px">
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
             {{ lic.description or '—' }}
           </td>
 
@@ -145,6 +183,7 @@
               Копировать
             </button>
 
+<<<<<<< HEAD
             <!-- Изменить описание -->
             <button type="button" class="btn small ghost"
                     onclick="openEditModal({{ lic.id }}, '{{ lic.description|replace("'", "\\'") }}')"
@@ -163,6 +202,16 @@
             <button type="button" class="btn small ghost"
                     onclick="openHistoryModal({{ lic.id }})"
                     title="История действий по лицензии">История</button>
+=======
+            <!-- Деактивировать (только у активированных, незаблокированных) -->
+            {% if lic.activated_at and not lic.is_blocked %}
+              <form method="post" action="/org/licenses/{{ lic.id }}/deactivate"
+                    style="display:inline"
+                    onsubmit="return confirm('Отвязать лицензию от устройства?\nПотребуется повторная активация.')">
+                <button class="btn small amber">Деактивировать</button>
+              </form>
+            {% endif %}
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
           </td>
         </tr>
       {% endfor %}
@@ -175,6 +224,7 @@
 {% if licenses %}
 <p style="font-size:12px;color:#94a3b8;margin-top:8px">
   Для активации лицензии используйте ключ в вашем приложении.
+<<<<<<< HEAD
   По вопросам сброса или переноса лицензии обращайтесь к вашему менеджеру.
 </p>
 {% endif %}
@@ -215,10 +265,16 @@
     </form>
   </div>
 </div>
+=======
+  При потере доступа к устройству нажмите «Деактивировать» для переноса лицензии.
+</p>
+{% endif %}
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 {% endblock %}
 
 {% block scripts %}
 <script>
+<<<<<<< HEAD
 function toggleIssueForm() {
   var f = document.getElementById('issueForm');
   if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
@@ -236,6 +292,11 @@ function closeEditModal() {
 
 function copyKey(key, btn) {
   if (!navigator.clipboard) {
+=======
+function copyKey(key, btn) {
+  if (!navigator.clipboard) {
+    // fallback для старых браузеров
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     var ta = document.createElement('textarea');
     ta.value = key;
     ta.style.position = 'fixed';
@@ -259,6 +320,7 @@ function showCopied(btn) {
     btn.disabled = false;
   }, 2000);
 }
+<<<<<<< HEAD
 
 var ACTION_LABELS = {
   'issue':      ['badge new',     'Выдача'],
@@ -310,5 +372,7 @@ function closeHistoryModal() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') { closeEditModal(); closeHistoryModal(); }
 });
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 </script>
 {% endblock %}

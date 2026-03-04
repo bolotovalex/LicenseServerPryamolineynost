@@ -129,6 +129,7 @@ async def _send_feedback_received(
     )
 
 
+<<<<<<< HEAD
 async def _send_feedback_reply_to_org(
     to: str, org_name: str, subject: str, reply_text: str, thread_url: str
 ) -> None:
@@ -163,6 +164,8 @@ async def _send_feedback_reply_to_admin(
     )
 
 
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 # ── public API (fire-and-forget) ──────────────────────────────────────────────
 
 def notify_org_created(client, plain_password: str) -> None:
@@ -197,6 +200,7 @@ def notify_feedback_received(
     asyncio.create_task(
         _send_feedback_received(to, org_name, contact_email, subject, message, admin_url)
     )
+<<<<<<< HEAD
 
 
 def notify_feedback_reply_to_org(
@@ -217,3 +221,5 @@ def notify_feedback_reply_to_admin(
         asyncio.create_task(
             _send_feedback_reply_to_admin(to, org_name, subject, reply_text, admin_url)
         )
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90

@@ -4,6 +4,7 @@
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
   <h1 style="margin:0">Клиенты</h1>
+<<<<<<< HEAD
   {% if show_deleted %}
     <a href="/owner/clients" class="btn small ghost">← Активные</a>
   {% else %}
@@ -13,6 +14,11 @@
 
 <!-- Форма создания (только в режиме активных) -->
 {% if not show_deleted %}
+=======
+</div>
+
+<!-- Форма создания -->
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 <div class="section">
   <details id="create-panel">
     <summary style="cursor:pointer;font-weight:600;font-size:14px;color:#1f64e2;list-style:none;display:flex;align-items:center;gap:8px">
@@ -24,11 +30,19 @@
 
         <div>
           <label>Название организации *</label>
+<<<<<<< HEAD
           <input name="org_name" class="input" placeholder="АО Технопарк Сибирь" required/>
         </div>
         <div>
           <label>Логин (уникальный) *</label>
           <input name="login" class="input" placeholder="technopark_sib" required/>
+=======
+          <input name="org_name" class="input" placeholder="ООО Рога и Копыта" required/>
+        </div>
+        <div>
+          <label>Логин (уникальный) *</label>
+          <input name="login" class="input" placeholder="roga_kopyta" required/>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         </div>
 
         <div>
@@ -41,7 +55,11 @@
         </div>
         <div>
           <label>Контактный email</label>
+<<<<<<< HEAD
           <input name="contact_email" class="input" type="email" placeholder="admin@technopark-sib.ru"/>
+=======
+          <input name="contact_email" class="input" type="email" placeholder="info@example.com"/>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         </div>
 
         <div>
@@ -55,7 +73,11 @@
 
         <div style="grid-column:1/-1">
           <label>Примечания</label>
+<<<<<<< HEAD
           <textarea name="notes" class="textarea" rows="2" placeholder="Договор №456 от 15.01.2025"></textarea>
+=======
+          <textarea name="notes" class="textarea" rows="2" placeholder="Дополнительная информация"></textarea>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         </div>
       </div>
       <div style="margin-top:14px;display:flex;gap:10px">
@@ -64,11 +86,15 @@
     </form>
   </details>
 </div>
+<<<<<<< HEAD
 {% endif %}
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
 
 <!-- Таблица клиентов -->
 <div class="section" style="padding:0;overflow:hidden">
   <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+<<<<<<< HEAD
     {% if show_deleted %}
     <table class="table-compact">
       <thead>
@@ -104,6 +130,8 @@
       </tbody>
     </table>
     {% else %}
+=======
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
     <table class="table-compact">
       <thead>
         <tr>
@@ -114,11 +142,19 @@
           <th class="right">Ключей</th>
           <th class="right">Лимит</th>
           <th>Статус</th>
+<<<<<<< HEAD
+=======
+          <th class="right">Открыть</th>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
         </tr>
       </thead>
       <tbody>
       {% for c in clients %}
+<<<<<<< HEAD
         <tr style="cursor:pointer" onclick="location.href='/owner/clients/{{ c.id }}'">
+=======
+        <tr>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
           <td style="color:#94a3b8;font-size:12px">{{ c.id }}</td>
           <td><strong>{{ c.org_name }}</strong></td>
           <td style="font-family:monospace;font-size:12px">{{ c.login or '—' }}</td>
@@ -132,6 +168,7 @@
               <span class="badge danger">отключён</span>
             {% endif %}
           </td>
+<<<<<<< HEAD
         </tr>
       {% else %}
         <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px">Клиентов нет</td></tr>
@@ -139,6 +176,17 @@
       </tbody>
     </table>
     {% endif %}
+=======
+          <td class="right">
+            <a class="btn small ghost" href="/owner/clients/{{ c.id }}">Открыть</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">Клиентов нет</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+>>>>>>> a844ab48249db67e2746f9bde3fc51fb6eff5c90
   </div>
 </div>
 {% endblock %}
