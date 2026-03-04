@@ -1,6 +1,33 @@
 {% extends "base_owner.html" %}
 {% block title %}{{ client.org_name }} — License Server{% endblock %}
 
+{% block head %}
+<style>
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color .15s, border-color .15s;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: #1f64e2; }
+.tab-active { color: #1f64e2 !important; border-bottom-color: #1f64e2 !important; }
+.btn-disabled, .btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: auto;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Заголовок -->
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
@@ -106,24 +133,39 @@
 </div>
 
 
-<!-- ═══════════════ БЛОК 3: ТАБЛИЦА КЛЮЧЕЙ ═══════════════ -->
+<!-- ═══════════════ ЕДИНЫЙ БЛОК С ВКЛАДКАМИ ═══════════════ -->
 <div class="section" style="padding:0;overflow:visible">
-  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-    <span class="section-title" style="margin:0;border:none;padding:0">
-      Лицензии
-      {% if total_keys > client.max_keys %}
-        <span style="font-weight:600;color:#ef4444;font-size:12px">&#9888; {{ total_keys }}/{{ client.max_keys }}</span>
-      {% else %}
-        <span style="font-weight:400;color:#94a3b8;font-size:12px">{{ total_keys }}/{{ client.max_keys }}</span>
-      {% endif %}
-    </span>
-    {% if max_allowed > 0 %}
-      <button id="issueBtn" type="button" class="btn small" onclick="toggleIssueForm()">+ Выпустить лицензию</button>
-    {% else %}
-      <button type="button" class="btn small" disabled title="Квота исчерпана">+ Выпустить лицензию</button>
-    {% endif %}
+
+  <!-- Шапка: вкладки слева, кнопка справа -->
+  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding:0 20px">
+    <div style="display:flex;gap:0" id="licTabs">
+      <button class="tab-btn tab-active" onclick="switchTab('licenses')" id="tab-licenses">
+        Лицензии
+        {% if total_keys > client.max_keys %}
+          <span style="font-weight:600;color:#ef4444;font-size:11px">&#9888; {{ total_keys }}/{{ client.max_keys }}</span>
+        {% else %}
+          <span style="color:#94a3b8;font-size:11px">{{ total_keys }}/{{ client.max_keys }}</span>
+        {% endif %}
+      </button>
+      <button class="tab-btn" onclick="switchTab('log')" id="tab-log">
+        Журнал
+        {% if log_entries %}<span style="color:#94a3b8;font-size:11px">{{ log_entries|length }}</span>{% endif %}
+      </button>
+      <button class="tab-btn" onclick="switchTab('archive')" id="tab-archive">
+        Архив лицензий
+        {% if deleted_licenses %}<span style="color:#94a3b8;font-size:11px">{{ deleted_licenses|length }}</span>{% endif %}
+      </button>
+    </div>
+    <div style="padding:10px 0">
+      <button id="issueBtn" type="button"
+              class="btn small{% if max_allowed == 0 %} btn-disabled{% endif %}"
+              {% if max_allowed == 0 %}disabled title="Достигнуто максимальное количество лицензий"{% else %}onclick="toggleIssueForm()"{% endif %}>
+        + Выпустить лицензию
+      </button>
+    </div>
   </div>
-  {% if max_allowed > 0 %}
+
+  <!-- Форма выдачи (скрыта по умолчанию) -->
   <div id="issueForm" style="display:none;padding:16px 20px;border-bottom:1px solid #f1f5f9;background:#f8fafc">
     <form method="post" action="/owner/clients/{{ client.id }}/generate">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
@@ -132,11 +174,11 @@
           <input name="description" class="input" placeholder="автоматическая генерация"/>
         </div>
         <div>
-          <label>Количество (макс. {{ max_allowed }})</label>
-          <input name="count" class="input" type="number" value="1" min="1" max="{{ max_allowed }}" required/>
+          <label>Количество{% if max_allowed %} (макс. {{ max_allowed }}){% endif %}</label>
+          <input name="count" class="input" type="number" value="1" min="1" max="{{ max_allowed or 1 }}" required/>
         </div>
         <div>
-          <label>Срок действия {% if client.key_ttl_days %}(+{{ client.key_ttl_days }} дн.){% endif %}</label>
+          <label>Срок действия{% if client.key_ttl_days %} (+{{ client.key_ttl_days }} дн.){% endif %}</label>
           <input name="expires_at" class="input" type="date" value="{{ default_expires }}"/>
         </div>
         <div style="display:flex;gap:6px">
@@ -146,297 +188,248 @@
       </div>
     </form>
   </div>
-  {% endif %}
 
-  {% if not licenses %}
-    <div style="padding:32px;text-align:center;color:#94a3b8">Лицензий нет</div>
-  {% else %}
-  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
-    <table class="table-compact resizable-table">
-      <colgroup>
-        <col style="width:42px">
-        <col style="width:130px">
-        <col style="width:34px">
-        <col style="width:90px">
-        <col>
-        <col style="width:88px">
-        <col style="width:88px">
-        <col style="width:80px">
-        <col>
-        <col style="width:96px">
-      </colgroup>
-      <thead>
-        <tr>
-          <th style="text-align:center">ID</th>
-          <th>Ключ</th>
-          <th style="text-align:center">ver</th>
-          <th style="text-align:center">Статус</th>
-          <th style="text-align:center">Устройство</th>
-          <th style="text-align:center">Выдан</th>
-          <th style="text-align:center">Активирован</th>
-          <th style="text-align:center">До</th>
-          <th>Описание</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for lic in licenses %}
-        {% set is_expired = lic.expires_at and lic.expires_at < now %}
-        <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
-          <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.id }}</td>
-
-          <!-- Ключ -->
-          <td>
-            <code style="font-size:11px;color:#334155">{{ lic.key }}</code>
-            <button class="btn small ghost" style="padding:2px 6px;font-size:11px;margin-left:4px"
-                    onclick="copyKey('{{ lic.key }}', this)" title="Копировать ключ">&#128203;</button>
-          </td>
-
-          <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.version }}</td>
-
-          <!-- Статус -->
-          <td style="text-align:center">
-            {% set st = lic.computed_status(now) %}
-            {% if st == 'blocked' %}
-              <span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
-            {% elif st == 'expired' %}
-              <span class="badge gray">Истёк</span>
-            {% elif st == 'activated' %}
-              <span class="badge success">Активирован</span>
-            {% elif st == 'released' %}
-              <span class="badge warn">Освобождён</span>
-            {% else %}
-              <span class="badge new">Не активирован</span>
-            {% endif %}
-          </td>
-
-          <td class="ellipsis w-220" title="{{ lic.device_id or '' }}"
-              style="font-size:11px;text-align:center">
-            {% if lic.device_name %}
-              {{ lic.device_name }}
-            {% elif lic.device_id %}
-              {{ lic.device_id[:20] }}{% if lic.device_id|length > 20 %}…{% endif %}
-            {% else %}
-              —
-            {% endif %}
-          </td>
-          <td style="white-space:nowrap;font-size:12px;text-align:center"
-              title="{{ lic.issued_at.isoformat(sep=' ', timespec='seconds') if lic.issued_at else '' }}">
-            {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
-          </td>
-          <td style="white-space:nowrap;font-size:12px;text-align:center"
-              title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') if lic.activated_at else '' }}">
-            {{ lic.activated_at.strftime('%Y-%m-%d') if lic.activated_at else '—' }}
-          </td>
-          <td style="white-space:nowrap;font-size:12px;text-align:center"
-              title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
-            {% if lic.expires_at %}
-              <span {% if is_expired %}style="color:#ef4444"{% endif %}>
-                {{ lic.expires_at.strftime('%Y-%m-%d') }}
-              </span>
-            {% else %}
-              <span style="color:#94a3b8">бессрочно</span>
-            {% endif %}
-          </td>
-          <td class="ellipsis w-280" title="{{ lic.description or '' }}" style="font-size:12px">
-            {{ lic.description or '—' }}
-          </td>
-
-          <!-- Действия -->
-          <td class="right" style="white-space:nowrap">
-            <!-- История ключей -->
-            <button type="button" class="btn small ghost"
-                    data-open-keys="{{ (keys_payloads or {})[lic.id] | tojson }}"
-                    title="История ключей">&#128214;</button>
-
-            <!-- История действий -->
-            <button type="button" class="btn small ghost"
-                    data-open-actions="{{ (actions_payloads or {})[lic.id] | tojson }}"
-                    title="История действий">&#128221;</button>
-
-            <!-- QR-код -->
-            <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode"
-               target="_blank" title="QR-код">QR</a>
-
-            <!-- Dropdown действий -->
-            <details class="row-actions">
-              <summary>&#8942;</summary>
-              <div class="menu" style="min-width:320px">
-
-                <!-- Сброс -->
-                <form method="post" action="/owner/licenses/{{ lic.id }}/reset">
-                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">СБРОС</div>
-                  <div class="line">
-                    <input class="input" name="reason" placeholder="Причина *" required style="flex:1"/>
-                    <input class="input" name="expires_at" type="date" style="width:140px"/>
-                    <button class="btn small amber">Сбросить</button>
-                  </div>
-                </form>
-
-                <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
-
-                <!-- Блокировка/разблокировка -->
-                {% if lic.is_blocked %}
-                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">РАЗБЛОКИРОВКА</div>
-                  <div class="line">
+  <!-- ── Вкладка: Лицензии ── -->
+  <div id="pane-licenses">
+    {% if not licenses %}
+      <div style="padding:32px;text-align:center;color:#94a3b8">Лицензий нет</div>
+    {% else %}
+    <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+      <table class="table-compact resizable-table">
+        <colgroup>
+          <col style="width:42px">
+          <col style="width:130px">
+          <col style="width:34px">
+          <col style="width:100px">
+          <col>
+          <col style="width:88px">
+          <col style="width:88px">
+          <col style="width:80px">
+          <col>
+          <col style="width:110px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th style="text-align:center">ID</th>
+            <th>Ключ</th>
+            <th style="text-align:center">ver</th>
+            <th style="text-align:center">Статус</th>
+            <th style="text-align:center">Устройство</th>
+            <th style="text-align:center">Выдан</th>
+            <th style="text-align:center">Активирован</th>
+            <th style="text-align:center">До</th>
+            <th>Описание</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for lic in licenses %}
+          {% set is_expired = lic.expires_at and lic.expires_at < now %}
+          <tr {% if is_expired %}style="background:#f8fafc"{% endif %}>
+            <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.id }}</td>
+            <td>
+              <code style="font-size:11px;color:#334155">{{ lic.key }}</code>
+              <button class="btn small ghost" style="padding:2px 6px;font-size:11px;margin-left:4px"
+                      onclick="copyKey('{{ lic.key }}', this)" title="Копировать ключ">&#128203;</button>
+            </td>
+            <td style="color:#94a3b8;font-size:11px;text-align:center">{{ lic.version }}</td>
+            <td style="text-align:center">
+              {% set st = lic.computed_status(now) %}
+              {% if st == 'blocked' %}
+                <span class="badge danger" title="{{ lic.block_reason or '' }}">Заблокирован</span>
+              {% elif st == 'expired' %}
+                <span class="badge gray">Истёк</span>
+              {% elif st == 'activated' %}
+                <span class="badge success">Активирован</span>
+              {% elif st == 'released' %}
+                <span class="badge warn">Освобождён</span>
+              {% else %}
+                <span class="badge new">Не активирован</span>
+              {% endif %}
+            </td>
+            <td class="ellipsis w-220" title="{{ lic.device_id or '' }}" style="font-size:11px;text-align:center">
+              {% if lic.device_name %}{{ lic.device_name }}
+              {% elif lic.device_id %}{{ lic.device_id[:20] }}{% if lic.device_id|length > 20 %}…{% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td style="white-space:nowrap;font-size:12px;text-align:center"
+                title="{{ lic.issued_at.isoformat(sep=' ', timespec='seconds') if lic.issued_at else '' }}">
+              {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
+            </td>
+            <td style="white-space:nowrap;font-size:12px;text-align:center"
+                title="{{ lic.activated_at.isoformat(sep=' ', timespec='seconds') if lic.activated_at else '' }}">
+              {{ lic.activated_at.strftime('%Y-%m-%d') if lic.activated_at else '—' }}
+            </td>
+            <td style="white-space:nowrap;font-size:12px;text-align:center"
+                title="{{ lic.expires_at.isoformat(sep=' ', timespec='seconds') if lic.expires_at else 'бессрочно' }}">
+              {% if lic.expires_at %}
+                <span {% if is_expired %}style="color:#ef4444"{% endif %}>{{ lic.expires_at.strftime('%Y-%m-%d') }}</span>
+              {% else %}<span style="color:#94a3b8">бессрочно</span>{% endif %}
+            </td>
+            <td class="ellipsis w-280" title="{{ lic.description or '' }}" style="font-size:12px">
+              {{ lic.description or '—' }}
+            </td>
+            <td class="right" style="white-space:nowrap">
+              <button type="button" class="btn small ghost"
+                      data-open-keys="{{ (keys_payloads or {})[lic.id] | tojson }}"
+                      title="История ключей">&#128214;</button>
+              <button type="button" class="btn small ghost"
+                      data-open-actions="{{ (actions_payloads or {})[lic.id] | tojson }}"
+                      title="История действий">&#128221;</button>
+              <a class="btn small ghost" href="/owner/licenses/{{ lic.id }}/qrcode"
+                 target="_blank" title="QR-код">QR</a>
+              <details class="row-actions">
+                <summary>&#8942;</summary>
+                <div class="menu" style="min-width:320px">
+                  <form method="post" action="/owner/licenses/{{ lic.id }}/reset">
+                    <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">СБРОС</div>
+                    <div class="line">
+                      <input class="input" name="reason" placeholder="Причина *" required style="flex:1"/>
+                      <input class="input" name="expires_at" type="date" style="width:140px"/>
+                      <button class="btn small amber">Сбросить</button>
+                    </div>
+                  </form>
+                  <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
+                  {% if lic.is_blocked %}
+                    <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">РАЗБЛОКИРОВКА</div>
                     <form method="post" action="/owner/licenses/{{ lic.id }}/unblock">
                       <button class="btn small green">Разблокировать</button>
                     </form>
-                  </div>
-                {% else %}
-                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">БЛОКИРОВКА</div>
-                  <form method="post" action="/owner/licenses/{{ lic.id }}/block">
-                    <div class="line">
-                      <input class="input" name="reason" placeholder="Причина блокировки *" required style="flex:1"/>
-                      <button class="btn small red">Заблокировать</button>
-                    </div>
+                  {% else %}
+                    <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">БЛОКИРОВКА</div>
+                    <form method="post" action="/owner/licenses/{{ lic.id }}/block">
+                      <div class="line">
+                        <input class="input" name="reason" placeholder="Причина блокировки *" required style="flex:1"/>
+                        <button class="btn small red">Заблокировать</button>
+                      </div>
+                    </form>
+                  {% endif %}
+                  <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
+                  <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">УДАЛЕНИЕ</div>
+                  <form method="post" action="/owner/licenses/{{ lic.id }}/delete"
+                        onsubmit="return confirm('Удалить ключ {{ lic.key }}?\nОн останется в архиве.')">
+                    <button class="btn small red">Удалить лицензию</button>
                   </form>
-                {% endif %}
-
-                <hr style="border:none;border-top:1px solid #f1f5f9;margin:8px 0"/>
-
-                <!-- Удалить лицензию -->
-                <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">УДАЛЕНИЕ</div>
-                <form method="post" action="/owner/licenses/{{ lic.id }}/delete"
-                      onsubmit="return confirm('Удалить ключ {{ lic.key }}?\nВосстановить нельзя, но он останется в архиве.')">
-                  <button class="btn small red">Удалить лицензию</button>
-                </form>
-              </div>
-            </details>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+                </div>
+              </details>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
+
+  <!-- ── Вкладка: Журнал ── -->
+  <div id="pane-log" style="display:none">
+    {% if not log_entries %}
+      <div style="padding:24px;text-align:center;color:#94a3b8">Записей нет</div>
+    {% else %}
+    <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+      <table class="table-compact resizable-table">
+        <colgroup>
+          <col style="width:130px">
+          <col style="width:48px">
+          <col style="width:80px">
+          <col style="width:110px">
+          <col>
+          <col>
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th style="text-align:center">Лиц.</th>
+            <th style="text-align:center">Ключ</th>
+            <th style="text-align:center">Действие</th>
+            <th>Описание</th>
+            <th>Причина / Актор</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for e in log_entries %}
+          {% set key_tail = (lic_key.get(e.get('license_id')) or '')[-4:] %}
+          <tr>
+            <td style="white-space:nowrap;font-size:12px;color:#64748b">{{ e.at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td style="text-align:center;font-size:11px;color:#94a3b8">
+              {% if e.get('license_id') %}#{{ e.license_id }}{% else %}—{% endif %}
+            </td>
+            <td style="text-align:center;font-size:11px;font-family:monospace;color:#64748b">
+              {% if key_tail %}…{{ key_tail }}{% else %}—{% endif %}
+            </td>
+            <td style="text-align:center">
+              {% set act = e.action %}
+              {% if act == 'issue' %}<span class="badge new">issue</span>
+              {% elif act == 'reset' %}<span class="badge yellow">reset</span>
+              {% elif act == 'block' %}<span class="badge danger">block</span>
+              {% elif act == 'unblock' %}<span class="badge success">unblock</span>
+              {% elif act == 'activate' %}<span class="badge gray">activate</span>
+              {% elif act == 'transfer' %}<span class="badge purple">transfer</span>
+              {% elif act == 'deactivate' %}<span class="badge orange">deactivate</span>
+              {% elif act == 'delete' %}<span class="badge danger">delete</span>
+              {% else %}<span class="badge">{{ act }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:#374151">{{ e.desc or '—' }}</td>
+            <td style="font-size:12px;color:#64748b">
+              {{ e.reason or e.actor or '—' }}
+              {% if e.ip %}<span style="color:#94a3b8">&nbsp;{{ e.ip }}</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Вкладка: Архив лицензий ── -->
+  <div id="pane-archive" style="display:none">
+    {% if not deleted_licenses %}
+      <div style="padding:32px;text-align:center;color:#94a3b8">Удалённых лицензий нет</div>
+    {% else %}
+    <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
+      <table class="table-compact">
+        <thead>
+          <tr>
+            <th style="text-align:center">ID</th>
+            <th>Ключ</th>
+            <th style="text-align:center">Статус</th>
+            <th style="text-align:center">Выдан</th>
+            <th style="text-align:center">Удалён</th>
+            <th>Описание</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for lic in deleted_licenses %}
+          <tr style="color:#94a3b8;background:#fafafa">
+            <td style="font-size:11px;text-align:center">{{ lic.id }}</td>
+            <td><code style="font-size:11px">{{ lic.key }}</code></td>
+            <td style="text-align:center">
+              {% set st = lic.computed_status(now) %}
+              {% if st == 'blocked' %}<span class="badge danger">Заблокирован</span>
+              {% elif st == 'expired' %}<span class="badge gray">Истёк</span>
+              {% elif st == 'activated' %}<span class="badge success">Активирован</span>
+              {% elif st == 'released' %}<span class="badge warn">Освобождён</span>
+              {% else %}<span class="badge new">Не активирован</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;font-size:12px;text-align:center">
+              {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
+            </td>
+            <td style="white-space:nowrap;font-size:12px;text-align:center;color:#ef4444">
+              {{ lic.deleted_at.strftime('%Y-%m-%d %H:%M') if lic.deleted_at else '—' }}
+            </td>
+            <td style="font-size:12px">{{ lic.description or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
 </div>
-
-
-<!-- ═══════════════ БЛОК 4: ЖУРНАЛ ДЕЙСТВИЙ ═══════════════ -->
-<div class="section" style="padding:0;overflow:hidden">
-  <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0">
-    <span class="section-title" style="margin:0;border:none;padding:0">Журнал действий</span>
-  </div>
-  {% if not log_entries %}
-    <div style="padding:24px;text-align:center;color:#94a3b8">Записей нет</div>
-  {% else %}
-  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
-    <table class="table-compact resizable-table">
-      <colgroup>
-        <col style="width:130px">
-        <col style="width:48px">
-        <col style="width:80px">
-        <col style="width:100px">
-        <col>
-        <col>
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Дата</th>
-          <th style="text-align:center">Лиц.</th>
-          <th style="text-align:center">Ключ</th>
-          <th style="text-align:center">Действие</th>
-          <th>Описание</th>
-          <th>Причина / Актор</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for e in log_entries %}
-        {% set key_tail = (lic_key.get(e.get('license_id')) or '')[-4:] %}
-        <tr>
-          <td style="white-space:nowrap;font-size:12px;color:#64748b">
-            {{ e.at.strftime('%Y-%m-%d %H:%M') }}
-          </td>
-          <td style="text-align:center;font-size:11px;color:#94a3b8">
-            {% if e.get('license_id') %}#{{ e.license_id }}{% else %}—{% endif %}
-          </td>
-          <td style="text-align:center;font-size:11px;font-family:monospace;color:#64748b">
-            {% if key_tail %}…{{ key_tail }}{% else %}—{% endif %}
-          </td>
-          <td style="text-align:center">
-            {% set act = e.action %}
-            {% if act == 'issue' %}
-              <span class="badge new">issue</span>
-            {% elif act == 'reset' %}
-              <span class="badge yellow">reset</span>
-            {% elif act == 'block' %}
-              <span class="badge danger">block</span>
-            {% elif act == 'unblock' %}
-              <span class="badge success">unblock</span>
-            {% elif act == 'activate' %}
-              <span class="badge gray">activate</span>
-            {% elif act == 'transfer' %}
-              <span class="badge purple">transfer</span>
-            {% elif act == 'deactivate' %}
-              <span class="badge orange">deactivate</span>
-            {% else %}
-              <span class="badge">{{ act }}</span>
-            {% endif %}
-          </td>
-          <td style="font-size:12px;color:#374151">{{ e.desc or '—' }}</td>
-          <td style="font-size:12px;color:#64748b">
-            {{ e.reason or e.actor or '—' }}
-            {% if e.ip %}<span style="color:#94a3b8">&nbsp;{{ e.ip }}</span>{% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-</div>
-
-
-<!-- ═══════════════ БЛОК 5: УДАЛЁННЫЕ ЛИЦЕНЗИИ ═══════════════ -->
-{% if deleted_licenses %}
-<div class="section" style="padding:0;overflow:hidden">
-  <details>
-    <summary style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px">
-      <span class="section-title" style="margin:0;border:none;padding:0">Архив удалённых лицензий</span>
-      <span class="badge gray">{{ deleted_licenses|length }}</span>
-    </summary>
-  <div class="table-wrap" style="border:none;border-radius:0;box-shadow:none">
-    <table class="table-compact">
-      <thead>
-        <tr>
-          <th style="text-align:center">ID</th>
-          <th>Ключ</th>
-          <th style="text-align:center">Статус на момент удаления</th>
-          <th style="text-align:center">Выдан</th>
-          <th style="text-align:center">Удалён</th>
-          <th>Описание</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for lic in deleted_licenses %}
-        <tr style="color:#94a3b8;background:#fafafa">
-          <td style="font-size:11px;text-align:center">{{ lic.id }}</td>
-          <td><code style="font-size:11px">{{ lic.key }}</code></td>
-          <td style="text-align:center">
-            {% set st = lic.computed_status(now) %}
-            {% if st == 'blocked' %}<span class="badge danger">Заблокирован</span>
-            {% elif st == 'expired' %}<span class="badge gray">Истёк</span>
-            {% elif st == 'activated' %}<span class="badge success">Активирован</span>
-            {% elif st == 'released' %}<span class="badge warn">Освобождён</span>
-            {% else %}<span class="badge new">Не активирован</span>
-            {% endif %}
-          </td>
-          <td style="white-space:nowrap;font-size:12px;text-align:center">
-            {{ lic.issued_at.strftime('%Y-%m-%d') if lic.issued_at else '—' }}
-          </td>
-          <td style="white-space:nowrap;font-size:12px;text-align:center;color:#ef4444">
-            {{ lic.deleted_at.strftime('%Y-%m-%d %H:%M') if lic.deleted_at else '—' }}
-          </td>
-          <td style="font-size:12px">{{ lic.description or '—' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  </details>
-</div>
-{% endif %}
 
 
 <!-- ═══════════════ МОДАЛКА СБРОСА ПАРОЛЯ ═══════════════ -->
@@ -510,6 +503,17 @@
 
 {% block scripts %}
 <script>
+// ── Вкладки ──
+function switchTab(name) {
+  ['licenses','log','archive'].forEach(function(t) {
+    document.getElementById('pane-' + t).style.display = t === name ? '' : 'none';
+    var tb = document.getElementById('tab-' + t);
+    if (tb) tb.classList.toggle('tab-active', t === name);
+  });
+  // Инициализировать resizer для видимой таблицы
+  if (name === 'licenses' || name === 'log') initResizers();
+}
+
 // ── Форма выдачи лицензии ──
 function toggleIssueForm() {
   var f   = document.getElementById('issueForm');
@@ -649,20 +653,24 @@ function copyKey(key, btn) {
 })();
 
 // ── Resizable columns ──
-document.querySelectorAll('.resizable-table th').forEach(function(th) {
-  th.style.position = 'relative';
-  var grip = document.createElement('div');
-  grip.style.cssText = 'position:absolute;right:0;top:0;width:5px;height:100%;cursor:col-resize;user-select:none;z-index:1';
-  grip.addEventListener('mousedown', function(e) {
-    e.preventDefault();
-    var startX = e.clientX, startW = th.offsetWidth;
-    function onMove(ev) { th.style.width = Math.max(40, startW + ev.clientX - startX) + 'px'; }
-    function onUp()   { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+function initResizers() {
+  document.querySelectorAll('.resizable-table th:not([data-grip])').forEach(function(th) {
+    th.setAttribute('data-grip','1');
+    th.style.position = 'relative';
+    var grip = document.createElement('div');
+    grip.style.cssText = 'position:absolute;right:0;top:0;width:5px;height:100%;cursor:col-resize;user-select:none;z-index:1';
+    grip.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      var startX = e.clientX, startW = th.offsetWidth;
+      function onMove(ev) { th.style.width = Math.max(40, startW + ev.clientX - startX) + 'px'; }
+      function onUp()   { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    th.appendChild(grip);
   });
-  th.appendChild(grip);
-});
+}
+initResizers();
 
 // ── ESC закрывает все модалки ──
 document.addEventListener('keydown', function(e) {
