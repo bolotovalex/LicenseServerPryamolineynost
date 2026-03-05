@@ -62,13 +62,15 @@ if [ ! -f "${CERT_DIR}/fullchain.pem" ]; then
     sleep 2
 
     echo "[nginx] Запрашиваем сертификат Let's Encrypt для ${DOMAIN}..."
+    rm -rf "/etc/letsencrypt/live/${DOMAIN}" \
+           "/etc/letsencrypt/archive/${DOMAIN}" \
+           "/etc/letsencrypt/renewal/${DOMAIN}.conf"
     certbot certonly --webroot -w "${WEBROOT}" \
         --email "${CERTBOT_EMAIL}" \
         -d "${DOMAIN}" \
         --rsa-key-size 4096 \
         --agree-tos \
-        --non-interactive \
-        --force-renewal
+        --non-interactive
 
     echo "[nginx] Перезагружаем nginx с реальным сертификатом..."
     nginx -s reload
