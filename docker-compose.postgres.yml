@@ -1,0 +1,82 @@
+version: "3.9"
+
+# =============================================================
+#  ИЗМЕНИТЕ ЭТИ ЗНАЧЕНИЯ ПЕРЕД ПЕРВЫМ ЗАПУСКОМ
+# =============================================================
+x-env: &env
+  SECRET_KEY:        "ЗАМЕНИТЕ"        # python -c "import secrets; print(secrets.token_hex(32))"
+  API_SECRET:        "ЗАМЕНИТЕ"        # python -c "import secrets; print(secrets.token_hex(32))"
+  DOMAIN:            "ваш.домен.ru"
+  CERTBOT_EMAIL:     "your@email.com"
+  POSTGRES_PASSWORD: "ЗАМЕНИТЕ_ПАРОЛЬ_БД"
+# =============================================================
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: licserver_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       licserver
+      POSTGRES_USER:     licuser
+      POSTGRES_PASSWORD: "ЗАМЕНИТЕ_ПАРОЛЬ_БД"  # должен совпадать с POSTGRES_PASSWORD выше
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U licuser -d licserver"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  app:
+    build: .
+    container_name: licserver_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *env
+      DATABASE_URL:  "postgresql+asyncpg://licuser:ЗАМЕНИТЕ_ПАРОЛЬ_БД@db:5432/licserver"  # пароль совпадает с POSTGRES_PASSWORD выше
+      DB_TYPE:       "postgres"
+      COOKIE_SECURE: "true"
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8000
+        --proxy-headers
+        --forwarded-allow-ips=*
+    networks:
+      - backend
+
+  nginx:
+    build: ./nginx
+    container_name: licserver_nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      <<: *env
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    networks:
+      - backend
+
+volumes:
+  postgres_data:
+  certbot_data:
+  certbot_www:
+
+networks:
+  backend:
+    driver: bridge

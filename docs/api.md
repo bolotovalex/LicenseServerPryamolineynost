@@ -86,11 +86,11 @@ def sign_request(method: str, path: str, body: bytes, secret: str) -> dict:
 
 | Поле           | Тип            | Описание                                          |
 |----------------|----------------|---------------------------------------------------|
-| `license_id`   | int            | Идентификатор лицензии в системе                  |
-| `organization` | string \| null | Название организации-владельца                    |
-| `description`  | string \| null | Описание лицензии                                 |
-| `status`       | string         | Текущий статус (см. раздел «Статусы»)             |
-| `activated_at` | string \| null | ISO datetime активации или `null`                 |
+| `license_id`     | int            | Идентификатор лицензии в системе                  |
+| `organization`   | string \| null | Название организации-владельца                    |
+| `description`    | string \| null | Описание лицензии                                 |
+| `license_status` | string         | Текущий статус лицензии (см. раздел «Статусы»)    |
+| `activated_at`   | string \| null | ISO datetime активации или `null`                 |
 | `expires_at`   | string         | ISO datetime истечения или `"permanent"`          |
 | `version`      | int            | Версия ключа (растёт при каждом `transfer`)       |
 | `device_id`    | string \| null | ID устройства, на котором активирована лицензия   |
@@ -161,7 +161,7 @@ XXXX-XXXX-XXXX
   "license_id":   42,
   "organization": "ООО Пример",
   "description":  "Основная лицензия",
-  "status":       "activated",
+  "license_status": "activated",
   "activated_at": "2026-03-01T09:00:00",
   "expires_at":   "2027-03-01T00:00:00",
   "version":      1,
@@ -202,13 +202,13 @@ XXXX-XXXX-XXXX
 
 ```json
 {
-  "status":    "ok",
-  "valid":     true,
-  "license_id": 42,
-  "organization": "ООО Пример",
-  "status":    "activated",
-  "expires_at": "2027-03-01T00:00:00",
-  "device_id": "550e8400-e29b-41d4-a716-446655440000"
+  "status":         "ok",
+  "valid":          true,
+  "license_id":     42,
+  "organization":   "ООО Пример",
+  "license_status": "activated",
+  "expires_at":     "2027-03-01T00:00:00",
+  "device_id":      "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -290,13 +290,13 @@ XXXX-XXXX-XXXX
 
 ```json
 {
-  "status":   "ok",
-  "new_key":  "XXXX-YYYY-ZZZZ",
-  "license_id": 42,
-  "organization": "ООО Пример",
-  "status":   "not_activated",
-  "version":  2,
-  "expires_at": "2027-03-01T00:00:00"
+  "status":         "ok",
+  "new_key":        "XXXX-YYYY-ZZZZ",
+  "license_id":     42,
+  "organization":   "ООО Пример",
+  "license_status": "not_activated",
+  "version":        2,
+  "expires_at":     "2027-03-01T00:00:00"
 }
 ```
 
@@ -322,17 +322,17 @@ XXXX-XXXX-XXXX
 
 ```json
 {
-  "status":       "ok",
-  "license_id":   42,
-  "organization": "ООО Пример",
-  "description":  "Основная лицензия",
-  "status":       "activated",
-  "activated_at": "2026-03-01T09:00:00",
-  "expires_at":   "permanent",
-  "version":      1,
-  "device_id":    "550e8400-e29b-41d4-a716-446655440000",
-  "device_name":  "Ноутбук бухгалтера",
-  "logo_url":     null
+  "status":         "ok",
+  "license_id":     42,
+  "organization":   "ООО Пример",
+  "description":    "Основная лицензия",
+  "license_status": "activated",
+  "activated_at":   "2026-03-01T09:00:00",
+  "expires_at":     "permanent",
+  "version":        1,
+  "device_id":      "550e8400-e29b-41d4-a716-446655440000",
+  "device_name":    "Ноутбук бухгалтера",
+  "logo_url":       null
 }
 ```
 

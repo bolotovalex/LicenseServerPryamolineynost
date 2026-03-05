@@ -201,11 +201,11 @@ def sign(method: str, path: str, body: bytes, secret: str) -> dict:
 
 ```json
 {
-  "license_id":   42,
-  "organization": "ООО Пример",
-  "description":  "Основная лицензия",
-  "status":       "activated",
-  "activated_at": "2026-03-01T09:00:00",
+  "license_id":     42,
+  "organization":   "ООО Пример",
+  "description":    "Основная лицензия",
+  "license_status": "activated",
+  "activated_at":   "2026-03-01T09:00:00",
   "expires_at":   "2027-03-01T00:00:00",
   "version":      1,
   "device_id":    "550e8400-e29b-41d4-a716-446655440000",

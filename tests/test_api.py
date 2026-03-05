@@ -19,7 +19,7 @@ async def test_activate_new_license(api_client, db_session):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "activated"
+    assert data["license_status"] == "activated"
     assert data["device_id"] == "dev-001"
     assert data["device_name"] == "My PC"
 
@@ -152,7 +152,7 @@ async def test_transfer_after_deactivate(api_client, db_session):
     # Активируем на новом устройстве с новым ключом
     r2 = await api_client.post("/api/activate", json={"key": new_key, "device_id": "dev-002"})
     assert r2.status_code == 200
-    assert r2.json()["status"] == "activated"
+    assert r2.json()["license_status"] == "activated"
 
 
 # ── status & history ──────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ async def test_status_not_activated(api_client, db_session):
     _, lic = await make_client_with_license(db_session)
     resp = await api_client.get("/api/status", params={"key": lic.key})
     assert resp.status_code == 200
-    assert resp.json()["status"] == "not_activated"
+    assert resp.json()["license_status"] == "not_activated"
 
 
 @pytest.mark.asyncio
@@ -171,7 +171,7 @@ async def test_status_after_activation(api_client, db_session):
     await api_client.post("/api/activate", json={"key": lic.key, "device_id": "dev-001"})
     resp = await api_client.get("/api/status", params={"key": lic.key})
     assert resp.status_code == 200
-    assert resp.json()["status"] == "activated"
+    assert resp.json()["license_status"] == "activated"
 
 
 @pytest.mark.asyncio
@@ -212,7 +212,7 @@ async def test_activate_device_swap(api_client, db_session):
     # Активируем lic2 тем же dev-swap — lic1 должен освободиться
     r = await api_client.post("/api/activate", json={"key": lic2_key, "device_id": "dev-swap"})
     assert r.status_code == 200
-    assert r.json()["status"] == "activated"
+    assert r.json()["license_status"] == "activated"
 
     db_session.expire_all()
     fresh1 = (await db_session.execute(select(License).where(License.id == lic1_id))).scalar_one()

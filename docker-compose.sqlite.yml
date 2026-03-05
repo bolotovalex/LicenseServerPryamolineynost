@@ -1,0 +1,60 @@
+version: "3.9"
+
+# =============================================================
+#  ИЗМЕНИТЕ ЭТИ ЗНАЧЕНИЯ ПЕРЕД ПЕРВЫМ ЗАПУСКОМ
+# =============================================================
+x-env: &env
+  SECRET_KEY:    "ЗАМЕНИТЕ"        # python -c "import secrets; print(secrets.token_hex(32))"
+  API_SECRET:    "ЗАМЕНИТЕ"        # python -c "import secrets; print(secrets.token_hex(32))"
+  DOMAIN:        "ваш.домен.ru"
+  CERTBOT_EMAIL: "your@email.com"
+# =============================================================
+
+services:
+
+  app:
+    build: .
+    container_name: licserver_app
+    restart: unless-stopped
+    environment:
+      <<: *env
+      DATABASE_URL:  "sqlite+aiosqlite:///./data/licserver.db"
+      DB_TYPE:       "sqlite"
+      COOKIE_SECURE: "true"
+    volumes:
+      - ./data:/app/data        # SQLite-файл БД
+      - ./logs:/app/logs        # логи
+      - ./config:/app/config:ro # конфиг без пересборки
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8000
+        --proxy-headers
+        --forwarded-allow-ips=*
+    networks:
+      - backend
+
+  nginx:
+    build: ./nginx
+    container_name: licserver_nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      <<: *env
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    networks:
+      - backend
+
+volumes:
+  certbot_data:
+  certbot_www:
+
+networks:
+  backend:
+    driver: bridge

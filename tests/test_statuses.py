@@ -83,7 +83,7 @@ async def test_reactivation_after_release(api_client, db_session):
     await api_client.post("/api/deactivate", json={"key": lic.key, "device_id": "dev-1"})
     r = await api_client.post("/api/activate", json={"key": lic.key, "device_id": "dev-2"})
     assert r.status_code == 200
-    assert r.json()["status"] == "activated"
+    assert r.json()["license_status"] == "activated"
     assert r.json()["device_id"] == "dev-2"
 
 

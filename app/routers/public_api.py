@@ -74,16 +74,16 @@ def _license_info(lic: License, client: Client | None, now: dt.datetime | None =
     now = now or dt.datetime.utcnow()
     logo_url = f"/owner/clients/{client.id}/logo" if client and client.logo_data else None
     return {
-        "license_id":   lic.id,
-        "organization": client.org_name if client else None,
-        "description":  lic.description,
-        "status":       lic.computed_status(now),
-        "activated_at": lic.activated_at.isoformat() if lic.activated_at else None,
-        "expires_at":   _expires_value(lic.expires_at),
-        "version":      lic.version,
-        "device_id":    lic.device_id,
-        "device_name":  lic.device_name,
-        "logo_url":     logo_url,
+        "license_id":     lic.id,
+        "organization":   client.org_name if client else None,
+        "description":    lic.description,
+        "license_status": lic.computed_status(now),
+        "activated_at":   lic.activated_at.isoformat() if lic.activated_at else None,
+        "expires_at":     _expires_value(lic.expires_at),
+        "version":        lic.version,
+        "device_id":      lic.device_id,
+        "device_name":    lic.device_name,
+        "logo_url":       logo_url,
     }
 
 

@@ -199,14 +199,14 @@ Future<void> main() async {
   // Активация лицензии
   final activateResp = await signedPost(
     url: '$baseUrl/api/activate',
-    body: {'key': 'XXXXX-XXXXX-XXXXX-XXXXX-XXXXX', 'device_id': 'device-uuid'},
+    body: {'key': 'ABCD-1234-EFGH', 'device_id': 'device-uuid'},
     apiSecret: apiSecret,
   );
   print('Activate: ${activateResp.statusCode} ${activateResp.body}');
 
   // Проверка статуса
   final statusResp = await signedGet(
-    url: '$baseUrl/api/status?key=XXXXX-XXXXX-XXXXX-XXXXX-XXXXX',
+    url: '$baseUrl/api/status?key=ABCD-1234-EFGH',
     apiSecret: apiSecret,
   );
   print('Status: ${statusResp.statusCode} ${statusResp.body}');
@@ -229,7 +229,7 @@ Future<void> main() async {
 ```bash
 TIMESTAMP=$(date +%s)
 NONCE=$(openssl rand -hex 16)
-BODY='{"key":"XXXXX-XXXXX-XXXXX-XXXXX-XXXXX","device_id":"my-device"}'
+BODY='{"key":"ABCD-1234-EFGH","device_id":"my-device"}'
 BODY_HASH=$(echo -n "$BODY" | sha256sum | cut -d' ' -f1)
 STRING_TO_SIGN="POST\n/api/activate\n${TIMESTAMP}\n${NONCE}\n${BODY_HASH}"
 SIGNATURE=$(echo -ne "$STRING_TO_SIGN" | openssl dgst -sha256 -hmac "my-super-secret" | cut -d' ' -f2)
@@ -251,7 +251,7 @@ BODY_HASH="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 STRING_TO_SIGN="GET\n/api/status\n${TIMESTAMP}\n${NONCE}\n${BODY_HASH}"
 SIGNATURE=$(echo -ne "$STRING_TO_SIGN" | openssl dgst -sha256 -hmac "my-super-secret" | cut -d' ' -f2)
 
-curl "https://your-server.example.com/api/status?key=XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" \
+curl "https://your-server.example.com/api/status?key=ABCD-1234-EFGH" \
   -H "X-Timestamp: $TIMESTAMP" \
   -H "X-Nonce: $NONCE" \
   -H "X-Signature: $SIGNATURE"
@@ -265,15 +265,17 @@ curl "https://your-server.example.com/api/status?key=XXXXX-XXXXX-XXXXX-XXXXX-XXX
 
 ```json
 {
-  "status": "ok",
-  "is_blocked": false,
-  "block_reason": null,
-  "is_activated": true,
-  "organization": "ООО Рога и Копыта",
-  "description": "Основная лицензия",
-  "activated_at": "2024-03-10T08:00:00",
-  "expires_at": "permanent",
-  "version": 1
+  "status":         "ok",
+  "license_id":     42,
+  "organization":   "ООО Рога и Копыта",
+  "description":    "Основная лицензия",
+  "license_status": "activated",
+  "activated_at":   "2024-03-10T08:00:00",
+  "expires_at":     "permanent",
+  "version":        1,
+  "device_id":      "550e8400-e29b-41d4-a716-446655440000",
+  "device_name":    "Ноутбук бухгалтера",
+  "logo_url":       null
 }
 ```
 
@@ -281,12 +283,17 @@ curl "https://your-server.example.com/api/status?key=XXXXX-XXXXX-XXXXX-XXXXX-XXX
 
 ```json
 {
-  "status": "ok",
-  "organization": "ООО Рога и Копыта",
-  "description": "Основная лицензия",
-  "activated_at": "2024-03-10T08:00:00",
-  "expires_at": "permanent",
-  "version": 1
+  "status":         "ok",
+  "license_id":     42,
+  "organization":   "ООО Рога и Копыта",
+  "description":    "Основная лицензия",
+  "license_status": "activated",
+  "activated_at":   "2024-03-10T08:00:00",
+  "expires_at":     "permanent",
+  "version":        1,
+  "device_id":      "550e8400-e29b-41d4-a716-446655440000",
+  "device_name":    "Мой ноутбук",
+  "logo_url":       null
 }
 ```
 
@@ -294,13 +301,18 @@ curl "https://your-server.example.com/api/status?key=XXXXX-XXXXX-XXXXX-XXXXX-XXX
 
 ```json
 {
-  "status": "ok",
-  "new_key": "YYYYY-YYYYY-YYYYY-YYYYY-YYYYY",
-  "organization": "ООО Рога и Копыта",
-  "description": "Основная лицензия",
-  "activated_at": null,
-  "expires_at": "permanent",
-  "version": 2
+  "status":         "ok",
+  "new_key":        "YYYY-YYYY-YYYY",
+  "license_id":     42,
+  "organization":   "ООО Рога и Копыта",
+  "description":    "Основная лицензия",
+  "license_status": "not_activated",
+  "activated_at":   null,
+  "expires_at":     "permanent",
+  "version":        2,
+  "device_id":      null,
+  "device_name":    null,
+  "logo_url":       null
 }
 ```
 
