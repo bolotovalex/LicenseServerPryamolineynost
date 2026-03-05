@@ -18,6 +18,7 @@ COPY templates ./templates
 COPY static ./static
 COPY config ./config
 COPY scripts ./scripts
+COPY cli.py ./cli.py
 
 # Директории для данных и логов (монтируются через volumes)
 RUN mkdir -p /app/data /app/logs
